@@ -169,4 +169,22 @@ tsconfig.json
       levels 1-2 normal-only, and levels 7-8 contain explosive bricks (25
       tests total now passing). `tsc --noEmit` and `eslint` clean, dev
       server compiles without errors.
-- [ ] Phase 7 — feel polish
+- [x] Phase 7 — feel polish. Replaced a hardcoded keyboard-paddle-speed
+      literal with `PADDLE_SPEED_KEYBOARD`; ball trail brightness floor
+      raised so it stays visible at low rally speed, not just near the 1.6x
+      cap. Input hardening: pointer drag now uses `setPointerCapture` so
+      fast/edge drags on mobile don't drop tracking, and pointer/keyboard
+      paddle input is gated to the "playing" phase (previously space could
+      fire/launch from the pause or title screen). User-requested fixes
+      folded in here: gave Reduce a fixed 10s duration so it now shows a
+      timer bar like the other timed power-ups (previously excluded since
+      it had no duration), and added a floating "Paddle Enlarged" / "Laser
+      Ready" / etc. toast that rises and fades above the paddle when a
+      power-up is caught (`src/render/animations/powerupToast.ts`). All 25
+      tests, `tsc --noEmit`, and `eslint` clean; dev server compiles with no
+      new errors.
+
+## Project status: all 7 phases complete
+
+Repo initialized and pushed to https://github.com/nonadzhurkova/bricks.git
+(branch `main`).
