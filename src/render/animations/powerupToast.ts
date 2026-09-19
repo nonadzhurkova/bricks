@@ -9,6 +9,7 @@ const POWERUP_MESSAGES: Record<PowerUpType, string> = {
   catch: "Sticky Paddle",
   slow: "Ball Slowed",
   extraLife: "+1 Life",
+  wall: "Floor Sealed",
 };
 
 /** Floating label that rises and fades, explaining what a caught power-up does. */

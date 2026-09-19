@@ -1,4 +1,4 @@
-export type PowerUpType = "enlarge" | "reduce" | "laser" | "catch" | "slow" | "extraLife";
+export type PowerUpType = "enlarge" | "reduce" | "laser" | "catch" | "slow" | "extraLife" | "wall";
 
 export interface PowerUpDef {
   type: PowerUpType;
@@ -15,6 +15,7 @@ export const POWERUPS: Record<PowerUpType, PowerUpDef> = {
   catch: { type: "catch", label: "C", color: 0x2dd4bf, duration: 12000 },
   slow: { type: "slow", label: "S", color: 0xfbbf24, duration: 10000 },
   extraLife: { type: "extraLife", label: "+1", color: 0xf472b6 },
+  wall: { type: "wall", label: "W", color: 0x22c55e, duration: 10000 },
 };
 
 export const POWERUP_DROP_TABLE: PowerUpType[] = [
@@ -24,4 +25,5 @@ export const POWERUP_DROP_TABLE: PowerUpType[] = [
   "catch",
   "slow",
   "extraLife",
+  "wall",
 ];

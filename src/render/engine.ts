@@ -38,6 +38,7 @@ import { chainExplosiveHits, playShockwaveRing } from "./animations/brickBreakEx
 import { playPowerUpRevealBreak } from "./animations/powerupReveal";
 import { playPaddleImpact } from "./animations/paddleImpact";
 import { startSlowRipple } from "./animations/slowRipple";
+import { startBottomWall } from "./animations/bottomWall";
 import { playPowerUpToast } from "./animations/powerupToast";
 import { endlessBaseSpeed } from "@/game/generate";
 
@@ -106,6 +107,7 @@ export class GameEngine {
   private powerUpElapsedMs = 0;
   private powerUpDurationMs = 0;
   private stopSlowRipple: (() => void) | null = null;
+  private stopBottomWall: (() => void) | null = null;
   private laserCooldownMs = 0;
 
   private level: LevelDef | null = null;
@@ -384,10 +386,15 @@ export class GameEngine {
       this.ballVel.y = Math.abs(this.ballVel.y);
     }
 
-    // ball lost
-    if (this.ballPos.y - BALL_RADIUS > ARENA_HEIGHT) {
-      this.callbacks.onLifeLost();
-      return;
+    // ball lost — unless Wall is active, in which case the bottom bounces like a wall
+    if (this.ballPos.y + BALL_RADIUS > ARENA_HEIGHT) {
+      if (this.activePowerUp === "wall") {
+        this.ballPos.y = ARENA_HEIGHT - BALL_RADIUS;
+        this.ballVel.y = -Math.abs(this.ballVel.y);
+      } else {
+        this.callbacks.onLifeLost();
+        return;
+      }
     }
 
     // paddle collision
@@ -645,6 +652,9 @@ export class GameEngine {
         this.slowActive = true;
         this.stopSlowRipple = startSlowRipple(this.paddle.container, this.paddleWidth, PADDLE_HEIGHT);
         break;
+      case "wall":
+        this.stopBottomWall = startBottomWall(this.world, ARENA_WIDTH, ARENA_HEIGHT);
+        break;
       case "catch":
       case "laser":
         break;
@@ -658,6 +668,8 @@ export class GameEngine {
     this.stopSlowRipple?.();
     this.stopSlowRipple = null;
     this.slowActive = false;
+    this.stopBottomWall?.();
+    this.stopBottomWall = null;
     if (this.ballStuckToPaddle) {
       this.releaseStuckBall();
     }
