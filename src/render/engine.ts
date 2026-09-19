@@ -120,6 +120,10 @@ export class GameEngine {
   private fireRequested = false;
   private levelClearTriggered = false;
 
+  /** ms since the ball last broke/hit a breakable brick or bounced off the paddle — a sparse endless layout can leave the ball cycling between just a wall/paddle/one brick forever, so a long stretch of "progress" resets triggers a small angle nudge to break the loop. */
+  private msSinceProgress = 0;
+  private static readonly STALL_NUDGE_MS = 6000;
+
   constructor(app: Application, callbacks: EngineCallbacks) {
     this.app = app;
     this.callbacks = callbacks;
@@ -218,6 +222,7 @@ export class GameEngine {
   resetBallOnPaddle(): void {
     this.clearPowerUp();
     this.ballLost = false;
+    this.msSinceProgress = 0;
     this.ballAttached = true;
     this.ballStuckToPaddle = false;
     this.currentSpeed = this.baseSpeed;
@@ -337,8 +342,34 @@ export class GameEngine {
     this.updateCapsules(dt);
     this.updateLasers(dt);
     this.updatePowerUpTimer(dt);
+    this.updateStallCheck(dt);
     this.render();
   };
+
+  /**
+   * A sparse layout (mostly cleared endless levels especially) can leave
+   * the ball settle into a stable bounce cycle — e.g. paddle <-> one brick
+   * <-> wall — that never reaches the remaining bricks. If too long passes
+   * without breaking/hitting a brick or bouncing off the paddle, nudge the
+   * ball's velocity angle slightly to break the cycle without it feeling
+   * like a scripted rescue.
+   */
+  private updateStallCheck(dt: number): void {
+    if (!this.level || this.levelClearTriggered || this.ballAttached || this.ballLost) return;
+    if (allBreakableBricksCleared(this.bricks)) return;
+
+    this.msSinceProgress += dt * 1000;
+    if (this.msSinceProgress < GameEngine.STALL_NUDGE_MS) return;
+
+    this.msSinceProgress = 0;
+    const speed = Math.hypot(this.ballVel.x, this.ballVel.y);
+    if (speed <= 0) return;
+
+    const angle = Math.atan2(this.ballVel.y, this.ballVel.x);
+    const nudge = (Math.PI / 10) * (Math.random() < 0.5 ? -1 : 1);
+    const newAngle = angle + nudge;
+    this.ballVel = { x: Math.cos(newAngle) * speed, y: Math.sin(newAngle) * speed };
+  }
 
   private updatePaddle(dt: number): void {
     if (this.keys.left) {
@@ -446,6 +477,7 @@ export class GameEngine {
       const pushed = resolvePenetration({ ...this.ballPos, radius: BALL_RADIUS }, hit);
       this.ballPos = pushed;
 
+      this.msSinceProgress = 0;
       this.handleBrickHit(brick, hit.contact.x - brick.x, hit.contact.y - brick.y);
       break;
     }
