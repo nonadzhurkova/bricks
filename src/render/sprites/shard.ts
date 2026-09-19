@@ -29,7 +29,9 @@ export function createShards(
 
   // Size shards off the brick's shorter dimension (its height, since bricks
   // are much wider than tall) so fragments stay proportional to the brick
-  // itself rather than ballooning past it.
+  // itself rather than ballooning past it. Target roughly half the brick's
+  // height per shard — small enough to read as fragments, large enough to
+  // actually be seen on a phone screen without any extra scale-down.
   const baseSize = Math.min(width, height);
 
   for (let i = 0; i < count; i++) {
@@ -39,7 +41,7 @@ export function createShards(
     const jitter = (Math.random() - 0.5) * 0.9;
     const angle = angleBase + jitter;
 
-    const r1 = baseSize * (0.35 + Math.random() * 0.3);
+    const r1 = baseSize * (0.5 + Math.random() * 0.35);
     const spread = 0.7 + Math.random() * 0.6;
     const p1x = Math.cos(angle) * r1;
     const p1y = Math.sin(angle) * r1;

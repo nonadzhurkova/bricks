@@ -49,7 +49,6 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
 
   const shards = createShards(width, height, color, ballDirX, ballDirY);
   shards.forEach((s) => {
-    s.container.scale = 0.7;
     group.addChild(s.container);
   });
 
@@ -77,19 +76,22 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
   // firework embers lingering rather than snapping away instantly.
   const flightStart = 0.05; // let the impact flash/crack read first
   const flightDuration = 1.1;
-  const fadeStart = flightDuration * 0.55;
+  const twinkleStart = 0.2;
+  const twinkleDuration = 0.12 * 4; // 3 yoyo repeats + the initial leg
+  const fadeStart = twinkleStart + twinkleDuration + 0.03; // start cleanly after the twinkle finishes
   const fadeDuration = flightDuration - fadeStart;
 
   shards.forEach((s) => {
-    tl.to(
+    tl.fromTo(
       s.container,
-      { scale: 1.05, duration: 0.07, ease: "power1.out" },
+      { scale: 0.4 },
+      { scale: 1.3, duration: 0.09, ease: "back.out(2)" },
       flightStart,
     )
       .to(
         s.container,
-        { scale: 0.55, duration: flightDuration - 0.07, ease: "power1.in" },
-        flightStart + 0.07,
+        { scale: 0.75, duration: flightDuration - 0.09, ease: "power1.in" },
+        flightStart + 0.09,
       )
       .to(
         s.container,
@@ -111,6 +113,8 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
         flightStart,
       )
       // gentle twinkle while embers drift, then fade out over a long tail
+      // (fadeStart is computed to start cleanly after the twinkle ends, so
+      // the two alpha tweens never fight over the same property mid-flight)
       .to(
         s.container,
         {
@@ -120,7 +124,7 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
           yoyo: true,
           ease: "sine.inOut",
         },
-        flightStart + 0.15,
+        flightStart + twinkleStart,
       )
       .to(
         s.container,

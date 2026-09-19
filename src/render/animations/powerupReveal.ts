@@ -30,7 +30,6 @@ export function playPowerUpRevealBreak(
 
   const shards = createShards(width, height, color, 0, 0);
   shards.forEach((s) => {
-    s.container.scale = 0.6;
     group.addChild(s.container);
   });
 
@@ -68,7 +67,7 @@ export function playPowerUpRevealBreak(
         { alpha: 0.55, duration: 0.12, repeat: 2, yoyo: true, ease: "sine.inOut" },
         0.25,
       )
-      .to(s.container, { alpha: 0, duration: 0.35, ease: "power1.in" }, 0.55);
+      .to(s.container, { alpha: 0, duration: 0.35, ease: "power1.in" }, 0.64);
   });
 
   tl.call(onCapsuleReady, undefined, 0.15);
