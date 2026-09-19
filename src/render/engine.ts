@@ -41,13 +41,6 @@ import { startSlowRipple } from "./animations/slowRipple";
 import { playPowerUpToast } from "./animations/powerupToast";
 import { endlessBaseSpeed } from "@/game/generate";
 
-const BRICK_PALETTE_COLOR: Record<Brick["type"], number> = {
-  normal: 0x3b82f6,
-  reinforced: 0x6d28d9,
-  indestructible: 0x334155,
-  explosive: 0xea580c,
-};
-
 export interface EngineCallbacks {
   onScore: (points: number) => void;
   onLifeLost: () => void;
@@ -425,12 +418,11 @@ export class GameEngine {
       const hit = circleRectCollision({ ...this.ballPos, radius: BALL_RADIUS }, rect);
       if (!hit) continue;
 
-      const incomingDir = { x: this.ballVel.x, y: this.ballVel.y };
       this.ballVel = reflectVelocity(this.ballVel, hit.side);
       const pushed = resolvePenetration({ ...this.ballPos, radius: BALL_RADIUS }, hit);
       this.ballPos = pushed;
 
-      this.handleBrickHit(brick, hit.contact.x - brick.x, hit.contact.y - brick.y, incomingDir);
+      this.handleBrickHit(brick, hit.contact.x - brick.x, hit.contact.y - brick.y);
       break;
     }
   }
@@ -439,7 +431,6 @@ export class GameEngine {
     brick: Brick,
     localContactX: number,
     localContactY: number,
-    incomingDir: Vec2,
     explosionDepth = 0,
   ): void {
     if (brick.type === "indestructible") {
@@ -461,10 +452,6 @@ export class GameEngine {
 
     this.callbacks.onScore(BRICK_SCORE[brick.type]);
 
-    const mag = Math.hypot(incomingDir.x, incomingDir.y) || 1;
-    const awayX = incomingDir.x / mag;
-    const awayY = incomingDir.y / mag;
-
     if (brick.type === "reinforced" && brick.hitsRemaining > 0) {
       playReinforcedCrack(this.effectsLayer, brick.x, brick.y, brick.width, brick.height);
       const sprite = this.brickSprites.get(brick.id);
@@ -481,7 +468,7 @@ export class GameEngine {
     }
 
     // brick breaks fully
-    this.breakBrick(brick, awayX, awayY);
+    this.breakBrick(brick);
 
     if (brick.type === "explosive" && explosionDepth < GameEngine.MAX_EXPLOSION_CHAIN_DEPTH) {
       this.triggerExplosion(brick, explosionDepth + 1);
@@ -494,13 +481,11 @@ export class GameEngine {
     this.callbacks.onBricksChanged?.(this.bricks);
   }
 
-  private breakBrick(brick: Brick, awayX: number, awayY: number): void {
+  private breakBrick(brick: Brick): void {
     brick.alive = false;
     const sprite = this.brickSprites.get(brick.id);
     sprite?.destroy();
     this.brickSprites.delete(brick.id);
-
-    const color = BRICK_PALETTE_COLOR[brick.type];
 
     if (brick.powerUp) {
       playPowerUpRevealBreak(
@@ -509,7 +494,6 @@ export class GameEngine {
         brick.y,
         brick.width,
         brick.height,
-        color,
         () => this.spawnCapsule(brick, brick.powerUp!),
       );
     } else {
@@ -519,9 +503,6 @@ export class GameEngine {
         y: brick.y,
         width: brick.width,
         height: brick.height,
-        color,
-        ballDirX: awayX,
-        ballDirY: awayY,
       });
     }
   }
@@ -556,9 +537,7 @@ export class GameEngine {
         return;
       }
 
-      const dx = brick.x + brick.width / 2 - centerX;
-      const dy = brick.y + brick.height / 2 - centerY;
-      this.handleBrickHit(brick, brick.width / 2, brick.height / 2, { x: dx, y: dy }, depth);
+      this.handleBrickHit(brick, brick.width / 2, brick.height / 2, depth);
     });
   }
 
@@ -734,7 +713,7 @@ export class GameEngine {
         if (!hit) continue;
 
         bolt.sprite.destroy();
-        this.handleBrickHit(brick, hit.contact.x - brick.x, hit.contact.y - brick.y, { x: 0, y: -1 });
+        this.handleBrickHit(brick, hit.contact.x - brick.x, hit.contact.y - brick.y);
         return false;
       }
 
