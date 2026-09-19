@@ -1,12 +1,12 @@
 import gsap from "gsap";
 import type { Container } from "pixi.js";
-import { playMeteorShower } from "./meteorShower";
+import { playBrickShatter } from "./brickShatter";
 
 /**
- * Power-up-carrying brick's break: the same light-based meteor shower
- * effect as every other brick break, with the capsule spawning shortly
- * after the burst starts (matching the previous "converge before reveal"
- * timing beat) rather than waiting for the whole effect to finish.
+ * Power-up-carrying brick's break: the same chunky shard shatter as every
+ * other brick break, with the capsule spawning shortly after the burst
+ * starts (matching the previous "converge before reveal" timing beat)
+ * rather than waiting for the whole effect to finish.
  */
 export function playPowerUpRevealBreak(
   layer: Container,
@@ -14,14 +14,16 @@ export function playPowerUpRevealBreak(
   y: number,
   width: number,
   height: number,
+  color: number,
   onCapsuleReady: () => void,
 ): gsap.core.Timeline {
-  const tl = playMeteorShower({
+  const tl = playBrickShatter({
     layer,
-    centerX: x + width / 2,
-    centerY: y + height / 2,
+    x,
+    y,
     width,
     height,
+    color,
   });
 
   tl.call(onCapsuleReady, undefined, 0.15);

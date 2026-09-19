@@ -2,7 +2,7 @@ import { Container, Graphics } from "pixi.js";
 import type { BrickType } from "@/game/brickTypes";
 
 /** Base + highlight/shadow facet shades per brick type. Deeper glass = tougher. */
-const BRICK_PALETTE: Record<BrickType, { base: number; highlight: number; shadow: number }> = {
+export const BRICK_PALETTE: Record<BrickType, { base: number; highlight: number; shadow: number }> = {
   normal: { base: 0x3b82f6, highlight: 0x93c5fd, shadow: 0x1e3a8a },
   reinforced: { base: 0x6d28d9, highlight: 0xa78bfa, shadow: 0x2e1065 },
   indestructible: { base: 0x334155, highlight: 0x64748b, shadow: 0x0f172a },

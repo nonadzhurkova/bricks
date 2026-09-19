@@ -29,7 +29,7 @@ import type { LevelDef } from "@/game/levels/types";
 import { POWERUPS, type PowerUpType } from "@/game/powerups";
 import { createBallSprite, updateBallTrail, type BallSprite } from "./sprites/ball";
 import { createPaddleSprite, drawPaddleBody, type PaddleSprite } from "./sprites/paddle";
-import { createBrickGraphics } from "./sprites/brick";
+import { BRICK_PALETTE, createBrickGraphics } from "./sprites/brick";
 import { createCapsuleSprite } from "./sprites/capsule";
 import { playNormalBreak } from "./animations/brickBreakNormal";
 import { playReinforcedCrack } from "./animations/brickBreakReinforced";
@@ -487,6 +487,8 @@ export class GameEngine {
     sprite?.destroy();
     this.brickSprites.delete(brick.id);
 
+    const color = BRICK_PALETTE[brick.type].base;
+
     if (brick.powerUp) {
       playPowerUpRevealBreak(
         this.effectsLayer,
@@ -494,6 +496,7 @@ export class GameEngine {
         brick.y,
         brick.width,
         brick.height,
+        color,
         () => this.spawnCapsule(brick, brick.powerUp!),
       );
     } else {
@@ -503,6 +506,7 @@ export class GameEngine {
         y: brick.y,
         width: brick.width,
         height: brick.height,
+        color,
       });
     }
   }
