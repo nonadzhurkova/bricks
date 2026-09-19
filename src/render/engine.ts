@@ -145,7 +145,7 @@ export class GameEngine {
   }
 
   /**
-   * Loads a level's bricks. Pass `savedBricks` (e.g. from a sessionStorage
+   * Loads a level's bricks. Pass `savedBricks` (e.g. from a localStorage
    * resume snapshot) to restore an exact in-progress brick state instead of
    * generating a fresh one; in that case entrance/stagger animation is
    * skipped since this isn't a "new level" moment.

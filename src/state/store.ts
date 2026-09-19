@@ -46,7 +46,7 @@ interface GameState {
   setActivePowerUp: (p: PowerUpType | null) => void;
   setPowerUpTimeRatio: (r: number) => void;
   addLife: () => void;
-  /** Reads all sessionStorage-backed state (best score, level progress, in-progress resume) after mount, avoiding an SSR/client hydration mismatch. */
+  /** Reads all localStorage-backed state (best score, level progress, in-progress resume) after mount, avoiding an SSR/client hydration mismatch. */
   hydrateFromStorage: () => void;
 }
 
@@ -55,7 +55,7 @@ export const TOTAL_LEVELS = 8;
 
 export const useGameStore = create<GameState>((set, get) => ({
   // Always starts from safe, SSR-identical defaults — anything read from
-  // sessionStorage (best score, level progress, an in-progress resume) is
+  // localStorage (best score, level progress, an in-progress resume) is
   // applied once via hydrateFromStorage() after mount, never at module
   // scope, so the server-rendered HTML and the client's first render match.
   phase: "title",
