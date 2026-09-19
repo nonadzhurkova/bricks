@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { createPixiApp } from "@/render/pixiApp";
 import { GameEngine } from "@/render/engine";
-import { levels } from "@/game/levels";
+import { getLevelDef } from "@/game/levels";
 import { ARENA_HEIGHT, ARENA_WIDTH } from "@/game/constants";
 import { useGameStore } from "@/state/store";
 import TimerBar from "./TimerBar";
@@ -41,6 +41,12 @@ export default function GameCanvas() {
 
   // Mount Pixi + engine once.
   useEffect(() => {
+    // Idempotent — also called by page.tsx's own mount effect. Called here
+    // too (synchronously, before anything reads store state below) so the
+    // level/score/lives used to build the very first engine load are never
+    // racing against sibling-effect ordering.
+    useGameStore.getState().hydrateFromStorage();
+
     let disposed = false;
     let engine: GameEngine | null = null;
     let app: Awaited<ReturnType<typeof createPixiApp>> | null = null;
@@ -68,7 +74,7 @@ export default function GameCanvas() {
       engineRef.current = engine;
 
       const currentLevelNum = useGameStore.getState().level;
-      const currentLevel = levels[currentLevelNum - 1] ?? levels[0];
+      const currentLevel = getLevelDef(currentLevelNum);
 
       const snapshot = getResumeSnapshot();
       const savedBricks =
@@ -91,7 +97,7 @@ export default function GameCanvas() {
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
-    const levelDef = levels[level - 1] ?? levels[0];
+    const levelDef = getLevelDef(level);
     if (prevLevelRef.current !== level && (phase === "playing")) {
       engine.loadLevel(levelDef, level);
       prevLevelRef.current = level;
@@ -126,7 +132,7 @@ export default function GameCanvas() {
     if (prevPhaseRef.current !== "gameOver" && phase === "gameOver") {
       engine.playGameOverEffect();
     }
-    if (phase === "gameOver" || phase === "win" || phase === "title") {
+    if (phase === "gameOver" || phase === "title") {
       clearResumeSnapshot();
     }
     if (phase === "playing") {

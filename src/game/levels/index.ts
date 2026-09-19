@@ -7,6 +7,7 @@ import level6 from "./level6";
 import level7 from "./level7";
 import level8 from "./level8";
 import type { LevelDef } from "./types";
+import { generateEndlessLevel } from "../generate";
 
 export const levels: LevelDef[] = [
   level1,
@@ -18,5 +19,15 @@ export const levels: LevelDef[] = [
   level7,
   level8,
 ];
+
+export const TOTAL_HAND_BUILT_LEVELS = levels.length;
+
+/** Returns the hand-built level for 1-8, or a deterministically generated endless level for 9+. */
+export function getLevelDef(levelNumber: number): LevelDef {
+  if (levelNumber >= 1 && levelNumber <= TOTAL_HAND_BUILT_LEVELS) {
+    return levels[levelNumber - 1];
+  }
+  return generateEndlessLevel(levelNumber);
+}
 
 export type { LevelDef };

@@ -188,3 +188,44 @@ tsconfig.json
 
 Repo initialized and pushed to https://github.com/nonadzhurkova/bricks.git
 (branch `main`).
+
+## Post-launch: endless mode
+
+Rebalanced levels 6-7 (were far too indestructible-heavy — 3 and 2 full
+walls respectively — now light pillar/accent use like levels 5/8's actual
+maze intent). Added `src/game/generate.ts`: a seeded procedural level
+generator for levels 9+ (`generateEndlessLevel(level)`), hooked into the
+same `getLevelDef()` lookup and level-clear flow the 8 hand-built levels use
+— no special-casing needed elsewhere.
+
+- Density, brick-type mix (shifting toward reinforced/explosive with an
+  indestructible ratio hard-capped at 22%), and ball speed (capped at 2.2x
+  base via `cappedBaseSpeedForLevel`) all scale with level number.
+- Solvability validation: flood-fills from the grid boundary through empty
+  *and breakable* cells (breakable bricks don't block a path — they can be
+  destroyed to open one), blocked only by indestructible cells. Rejects and
+  regenerates (bumped seed, up to 25 attempts, then a guaranteed-solvable
+  indestructible-free fallback) only the real failure case — a breakable
+  brick fully walled in by indestructible bricks with no gap. Caught and
+  fixed two real bugs here: an early version flagged any breakable brick
+  without an *empty* neighbor as unsolvable (rejected normal dense brick
+  packing, which is fine — bricks aren't walls), and a weighted-pick helper
+  was returning brick-type names (`"reinforced"`) instead of grid chars
+  (`"R"`), corrupting every generated grid.
+- Deterministic per level number (mulberry32 PRNG, integer-hashed seed) —
+  same level always generates identically, verified in
+  `generate.test.ts` (11 tests: dimensions/valid chars, determinism,
+  solvability incl. adversarial walled-in cases, indestructible ratio cap,
+  speed cap).
+- Store: `nextLevel` no longer caps at level 8 / sets a `win` phase — it's
+  now the same flow for every level number. Removed the win screen and
+  `win` phase entirely (level 8 clear flows straight into level 9). Added
+  `highestLevelPassed` (drives "Continue — Level N" on the title screen;
+  wiped by "Restart from level 1") and `bestLevelReached` (an all-time
+  record like best score, never wiped) — both sessionStorage-backed.
+- Fixed a latent SSR/hydration bug while touching this: the store was
+  reading sessionStorage at module scope (`typeof window !== "undefined"`
+  guards), which differs between server and client renders — same class of
+  bug fixed for best score back in Phase 3, just not yet applied to the
+  resume-snapshot/level-progress state added afterward. Consolidated all of
+  it into one `hydrateFromStorage()` called after mount.

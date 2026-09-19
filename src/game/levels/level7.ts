@@ -5,12 +5,12 @@ const level7: LevelDef = {
   name: "Fault Lines",
   grid: [
     "........",
-    "IIII.III",
-    "RRRE.RRR",
+    "NNNI.INN",
+    "RRRI.IRR",
     "NNNN.NNN",
     "NNNN.NNN",
-    "RRRE.RRR",
-    "IIII.III",
+    "RRRE.ERR",
+    "NNNI.INN",
     "........",
   ],
 };

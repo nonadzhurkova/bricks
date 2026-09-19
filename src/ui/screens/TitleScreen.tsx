@@ -8,6 +8,7 @@ export default function TitleScreen() {
   const restartFromLevelOne = useGameStore((s) => s.restartFromLevelOne);
   const bestScore = useGameStore((s) => s.bestScore);
   const highestLevelPassed = useGameStore((s) => s.highestLevelPassed);
+  const bestLevelReached = useGameStore((s) => s.bestLevelReached);
 
   const hasProgress = highestLevelPassed > 0;
 
@@ -16,6 +17,7 @@ export default function TitleScreen() {
       <h1 style={{ fontSize: 40, margin: 0, letterSpacing: 1 }}>Crystal Break</h1>
       <p className="credit-line">by Nona Dzhurkova</p>
       {bestScore > 0 && <p style={{ opacity: 0.7 }}>Best score: {bestScore}</p>}
+      {bestLevelReached > 0 && <p style={{ opacity: 0.7 }}>Best level reached: {bestLevelReached}</p>}
       <button className="primary-btn" onClick={startGame}>
         {hasProgress ? `Continue — Level ${highestLevelPassed + 1}` : "Start"}
       </button>

@@ -1,23 +1,22 @@
 import { create } from "zustand";
 import {
+  getBestLevelReached,
   getBestScore,
   getHighestLevelPassed,
   getResumeSnapshot,
   resetHighestLevelPassed,
+  setBestLevelReached,
   setBestScore,
   setHighestLevelPassed,
 } from "./storage";
 import type { PowerUpType } from "@/game/powerups";
-
-const initialResume = typeof window !== "undefined" ? getResumeSnapshot() : null;
 
 export type GamePhase =
   | "title"
   | "playing"
   | "paused"
   | "levelClear"
-  | "gameOver"
-  | "win";
+  | "gameOver";
 
 interface GameState {
   phase: GamePhase;
@@ -28,8 +27,10 @@ interface GameState {
   activePowerUp: PowerUpType | null;
   /** 0-1 remaining ratio for the active timed power-up; 1 = just activated */
   powerUpTimeRatio: number;
-  /** Highest level number fully cleared this session; "Start" resumes at highestLevelPassed + 1. */
+  /** Highest level number fully cleared this session; "Start" resumes at highestLevelPassed + 1. Reset by restartFromLevelOne. */
   highestLevelPassed: number;
+  /** All-time record level reached this session; never reset, shown alongside best score. */
+  bestLevelReached: number;
 
   startGame: () => void;
   restartFromLevelOne: () => void;
@@ -42,40 +43,40 @@ interface GameState {
   levelClear: () => void;
   nextLevel: () => void;
   gameOver: () => void;
-  win: () => void;
   setActivePowerUp: (p: PowerUpType | null) => void;
   setPowerUpTimeRatio: (r: number) => void;
   addLife: () => void;
-  hydrateBestScore: () => void;
+  /** Reads all sessionStorage-backed state (best score, level progress, in-progress resume) after mount, avoiding an SSR/client hydration mismatch. */
+  hydrateFromStorage: () => void;
 }
 
 export const LIVES_PER_LEVEL = 3;
 export const TOTAL_LEVELS = 8;
 
-const initialHighestLevel = typeof window !== "undefined" ? getHighestLevelPassed() : 0;
-
 export const useGameStore = create<GameState>((set, get) => ({
-  phase: initialResume ? "playing" : "title",
-  level: initialResume?.level ?? 1,
-  score: initialResume?.score ?? 0,
+  // Always starts from safe, SSR-identical defaults — anything read from
+  // sessionStorage (best score, level progress, an in-progress resume) is
+  // applied once via hydrateFromStorage() after mount, never at module
+  // scope, so the server-rendered HTML and the client's first render match.
+  phase: "title",
+  level: 1,
+  score: 0,
   bestScore: 0,
-  lives: initialResume?.lives ?? LIVES_PER_LEVEL,
+  lives: LIVES_PER_LEVEL,
   activePowerUp: null,
   powerUpTimeRatio: 0,
-  highestLevelPassed: initialHighestLevel,
+  highestLevelPassed: 0,
+  bestLevelReached: 0,
 
   startGame: () =>
-    set((s) => {
-      const startLevel = Math.min(s.highestLevelPassed + 1, TOTAL_LEVELS);
-      return {
-        phase: "playing",
-        level: startLevel,
-        score: 0,
-        lives: LIVES_PER_LEVEL,
-        activePowerUp: null,
-        powerUpTimeRatio: 0,
-      };
-    }),
+    set((s) => ({
+      phase: "playing",
+      level: s.highestLevelPassed + 1,
+      score: 0,
+      lives: LIVES_PER_LEVEL,
+      activePowerUp: null,
+      powerUpTimeRatio: 0,
+    })),
 
   /** Full reset: forgets saved progress and begins again at level 1 (win screen's "restart from level 1"). */
   restartFromLevelOne: () => {
@@ -129,29 +130,39 @@ export const useGameStore = create<GameState>((set, get) => ({
   nextLevel: () =>
     set((s) => {
       setHighestLevelPassed(s.level);
+      setBestLevelReached(s.level);
       const highestLevelPassed = Math.max(s.highestLevelPassed, s.level);
+      const bestLevelReached = Math.max(s.bestLevelReached, s.level);
 
-      const nextLevelNum = s.level + 1;
-      if (nextLevelNum > TOTAL_LEVELS) {
-        return { phase: "win", highestLevelPassed };
-      }
+      // Endless mode: levels continue indefinitely past the 8 hand-built
+      // ones (generateEndlessLevel covers 9+), no win-screen cutoff.
       return {
         phase: "playing",
-        level: nextLevelNum,
+        level: s.level + 1,
         score: 0,
         lives: LIVES_PER_LEVEL,
         activePowerUp: null,
         powerUpTimeRatio: 0,
         highestLevelPassed,
+        bestLevelReached,
       };
     }),
 
   gameOver: () => set({ phase: "gameOver" }),
-  win: () => set({ phase: "win" }),
 
   setActivePowerUp: (p) => set({ activePowerUp: p, powerUpTimeRatio: p ? 1 : 0 }),
   setPowerUpTimeRatio: (r) => set({ powerUpTimeRatio: r }),
   addLife: () => set((s) => ({ lives: s.lives + 1 })),
 
-  hydrateBestScore: () => set({ bestScore: getBestScore() }),
+  hydrateFromStorage: () => {
+    const resume = getResumeSnapshot();
+    set({
+      bestScore: getBestScore(),
+      highestLevelPassed: getHighestLevelPassed(),
+      bestLevelReached: getBestLevelReached(),
+      ...(resume
+        ? { phase: "playing", level: resume.level, score: resume.score, lives: resume.lives }
+        : {}),
+    });
+  },
 }));

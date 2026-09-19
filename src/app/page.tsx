@@ -8,7 +8,6 @@ import HUD from "@/ui/screens/HUD";
 import PauseOverlay from "@/ui/screens/PauseOverlay";
 import LevelClearOverlay from "@/ui/screens/LevelClearOverlay";
 import GameOverOverlay from "@/ui/screens/GameOverOverlay";
-import WinScreen from "@/ui/screens/WinScreen";
 import { useGameStore } from "@/state/store";
 import StarfieldBackground from "@/ui/StarfieldBackground";
 
@@ -17,7 +16,7 @@ export default function Home() {
   const pause = useGameStore((s) => s.pause);
 
   useEffect(() => {
-    useGameStore.getState().hydrateBestScore();
+    useGameStore.getState().hydrateFromStorage();
   }, []);
 
   useEffect(() => {
@@ -43,7 +42,6 @@ export default function Home() {
         {phase === "paused" && <PauseOverlay key="paused" />}
         {phase === "levelClear" && <LevelClearOverlay key="levelClear" />}
         {phase === "gameOver" && <GameOverOverlay key="gameOver" />}
-        {phase === "win" && <WinScreen key="win" />}
       </AnimatePresence>
     </div>
   );
