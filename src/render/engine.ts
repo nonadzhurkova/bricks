@@ -2,7 +2,7 @@ import { Application, Container, Graphics } from "pixi.js";
 import gsap from "gsap";
 import { circleRectCollision, reflectVelocity, resolvePenetration } from "@/physics/collision";
 import { paddleBounce } from "@/physics/paddle";
-import { accelerateOnRally, cappedBaseSpeedForLevel, rescaleVelocity, SPEED_CAP_MULTIPLIER } from "@/physics/speed";
+import { accelerateOnRally, rescaleVelocity, SPEED_CAP_MULTIPLIER } from "@/physics/speed";
 import type { Vec2 } from "@/physics/types";
 import {
   ARENA_HEIGHT,
@@ -39,7 +39,7 @@ import { playPowerUpRevealBreak } from "./animations/powerupReveal";
 import { playPaddleImpact } from "./animations/paddleImpact";
 import { startSlowRipple } from "./animations/slowRipple";
 import { playPowerUpToast } from "./animations/powerupToast";
-import { ENDLESS_SPEED_CAP_MULTIPLIER } from "@/game/generate";
+import { endlessBaseSpeed } from "@/game/generate";
 
 const BRICK_PALETTE_COLOR: Record<Brick["type"], number> = {
   normal: 0x3b82f6,
@@ -152,12 +152,7 @@ export class GameEngine {
    */
   loadLevel(level: LevelDef, levelNumber: number, savedBricks?: Brick[]): void {
     this.level = level;
-    this.baseSpeed = cappedBaseSpeedForLevel(
-      levelNumber,
-      BASE_SPEED,
-      SPEED_PER_LEVEL_INCREASE,
-      ENDLESS_SPEED_CAP_MULTIPLIER,
-    );
+    this.baseSpeed = endlessBaseSpeed(levelNumber, BASE_SPEED, SPEED_PER_LEVEL_INCREASE);
     this.currentSpeed = this.baseSpeed;
 
     this.brickLayer.removeChildren();

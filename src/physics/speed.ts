@@ -11,20 +11,6 @@ export function baseSpeedForLevel(level: number, baseSpeed: number, perLevelIncr
 }
 
 /**
- * Same linear per-level speed model, but capped so endless mode's unbounded
- * level numbers never grow the ball's base speed past a playable ceiling.
- */
-export function cappedBaseSpeedForLevel(
-  level: number,
-  baseSpeed: number,
-  perLevelIncrease: number,
-  maxMultiplier: number,
-): number {
-  const uncapped = baseSpeedForLevel(level, baseSpeed, perLevelIncrease);
-  return Math.min(uncapped, baseSpeed * maxMultiplier);
-}
-
-/**
  * Applies gentle acceleration to the current speed after a brick hit
  * (rally continues), capped at SPEED_CAP_MULTIPLIER × base.
  */

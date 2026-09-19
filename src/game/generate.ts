@@ -32,24 +32,38 @@ function seedForLevel(level: number): number {
 }
 
 // ---- difficulty curves --------------------------------------------------
+//
+// Level 8 (the hardest hand-built level) sits at ~69% brick density, ~56
+// total hit-points, and a base speed of 358px/s (260 + 7*14). Endless mode
+// (9+) needs to pick up at least that hard and keep climbing indefinitely —
+// density alone can't carry that past the ~90% grid ceiling, so once it
+// caps, ball speed and brick toughness keep rising instead so level 900 is
+// still clearly harder than level 90.
 
-/** Fraction of playable cells that are non-empty, ramping from ~55% to a cap of ~90%. */
+/** Fraction of playable cells that are non-empty: starts at level 8's own density, ramps to a ~92% ceiling by level ~40. */
 function densityForLevel(level: number): number {
-  const ramped = 0.55 + (level - 9) * 0.03;
-  return Math.min(ramped, 0.9);
+  const t = Math.min((level - 9) / 31, 1); // 0 at level 9, 1 by level 40+
+  const ramped = 0.7 + t * 0.22;
+  return Math.min(ramped, 0.92);
 }
 
-/** Brick-type weights shift toward tougher/hazard bricks as level rises, capped so it never becomes all-indestructible. */
+/**
+ * Brick-type weights shift toward tougher/hazard bricks as level rises. The
+ * ramp continues (slowly) indefinitely past its initial 20-level stretch —
+ * unlike density, toughness has no natural grid-size ceiling, so it's one
+ * of the two axes (with speed) that keeps endless mode getting harder well
+ * past the point brick density maxes out.
+ */
 function brickWeightsForLevel(level: number): { normal: number; reinforced: number; indestructible: number; explosive: number } {
-  const t = Math.min((level - 9) / 20, 1); // 0 at level 9, 1 by level 29+
+  const t = 1 - Math.exp(-(level - 9) / 60); // approaches 1 asymptotically, never fully plateaus
 
   return {
-    normal: 0.55 - t * 0.25,
-    reinforced: 0.25 + t * 0.15,
+    normal: Math.max(0.5 - t * 0.35, 0.15),
+    reinforced: 0.25 + t * 0.2,
     // indestructible is intentionally capped low — it's a hazard/maze accent,
     // never allowed to dominate the mix (see MAX_INDESTRUCTIBLE_RATIO below)
     indestructible: 0.1 + t * 0.1,
-    explosive: 0.1 + t * 0.1,
+    explosive: 0.1 + t * 0.15,
   };
 }
 
@@ -57,12 +71,21 @@ function brickWeightsForLevel(level: number): { normal: number; reinforced: numb
 const MAX_INDESTRUCTIBLE_RATIO = 0.22;
 
 /**
- * Ball base speed grows without bound past level 8 in the plain linear model
- * (see physics/speed.ts baseSpeedForLevel); this multiplier caps it so
- * endless mode never becomes physically unplayable at very high levels.
- * Applied uniformly via cappedBaseSpeedForLevel in the render engine.
+ * Ball base speed for endless levels: matches the same per-level increase
+ * used by the hand-built levels through level 8, then keeps climbing at a
+ * slower, purely logarithmic rate — meaningfully faster at level 900 than
+ * level 90, but without the runaway growth of staying linear forever.
+ * Applied in the render engine via GameEngine's speed calc.
  */
-export const ENDLESS_SPEED_CAP_MULTIPLIER = 2.2;
+export function endlessBaseSpeed(level: number, baseSpeed: number, perLevelIncrease: number): number {
+  if (level <= 8) return baseSpeed + (level - 1) * perLevelIncrease;
+
+  const speedAtEight = baseSpeed + 7 * perLevelIncrease;
+  const levelsIntoEndless = level - 8;
+  // slow log growth: roughly +perLevelIncrease for the first level past 8,
+  // tapering off so it never becomes literally unplayable at very high levels
+  return speedAtEight + perLevelIncrease * Math.log2(levelsIntoEndless + 1) * 4;
+}
 
 // ---- generation ----------------------------------------------------------
 

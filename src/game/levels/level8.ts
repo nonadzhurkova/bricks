@@ -6,9 +6,9 @@ const level8: LevelDef = {
   grid: [
     "........",
     "RRRRRRRR",
-    "NIN..NIN",
+    "NNN..NNN",
     "NRNEENRN",
-    "NIN..NIN",
+    "NNN..NNN",
     "NRRRRRRN",
     "NNNNNNNN",
     "........",

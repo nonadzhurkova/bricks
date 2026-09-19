@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { generateEndlessLevel, isSolvable, type Cell } from "./generate";
+import { generateEndlessLevel, isSolvable, endlessBaseSpeed, type Cell } from "./generate";
 import { BRICK_CHAR_MAP } from "./brickTypes";
 import { BRICK_COLS, BRICK_ROWS } from "./constants";
-import { cappedBaseSpeedForLevel } from "@/physics/speed";
-import { ENDLESS_SPEED_CAP_MULTIPLIER } from "./generate";
 
 describe("generateEndlessLevel", () => {
   it("produces a grid with valid dimensions and only known brick chars", () => {
@@ -152,15 +150,32 @@ describe("isSolvable", () => {
   });
 });
 
-describe("endless ball speed cap", () => {
-  it("grows linearly at first, then caps at a multiple of base speed", () => {
-    const base = 260;
-    const perLevel = 14;
-    const low = cappedBaseSpeedForLevel(9, base, perLevel, ENDLESS_SPEED_CAP_MULTIPLIER);
-    const veryHigh = cappedBaseSpeedForLevel(500, base, perLevel, ENDLESS_SPEED_CAP_MULTIPLIER);
+describe("endlessBaseSpeed", () => {
+  const base = 260;
+  const perLevel = 14;
 
-    expect(low).toBeCloseTo(base + 8 * perLevel);
-    expect(veryHigh).toBeCloseTo(base * ENDLESS_SPEED_CAP_MULTIPLIER);
-    expect(veryHigh).toBeLessThan(base * ENDLESS_SPEED_CAP_MULTIPLIER + 1);
+  it("matches the plain linear model through level 8", () => {
+    for (const level of [1, 4, 8]) {
+      expect(endlessBaseSpeed(level, base, perLevel)).toBeCloseTo(base + (level - 1) * perLevel);
+    }
+  });
+
+  it("keeps climbing indefinitely past level 8, never capping", () => {
+    const speeds = [9, 50, 200, 900, 5000].map((level) => endlessBaseSpeed(level, base, perLevel));
+    for (let i = 1; i < speeds.length; i++) {
+      expect(speeds[i]).toBeGreaterThan(speeds[i - 1]);
+    }
+  });
+
+  it("level 900 is meaningfully faster than level 90 (no plateau)", () => {
+    const at90 = endlessBaseSpeed(90, base, perLevel);
+    const at900 = endlessBaseSpeed(900, base, perLevel);
+    expect(at900).toBeGreaterThan(at90 * 1.05);
+  });
+
+  it("growth rate slows down at higher levels (logarithmic, not linear forever)", () => {
+    const delta10to20 = endlessBaseSpeed(20, base, perLevel) - endlessBaseSpeed(10, base, perLevel);
+    const delta910to920 = endlessBaseSpeed(920, base, perLevel) - endlessBaseSpeed(910, base, perLevel);
+    expect(delta910to920).toBeLessThan(delta10to20);
   });
 });
