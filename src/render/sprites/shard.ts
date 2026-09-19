@@ -10,8 +10,9 @@ export interface Shard {
 /**
  * Builds 5-8 triangular glass-fragment shards from a brick's bounding box,
  * biased to fly away from the ball's approach direction. Each shard has a
- * two-tone fill (base + a brighter lit edge) plus a thin rim stroke so it
- * reads as a fragment catching light, not a flat solid triangle.
+ * bold two-tone fill (base + a vivid lit edge) plus a bright rim stroke and
+ * an outer glow so it reads clearly against the dark background instead of
+ * disappearing as a tiny sliver.
  */
 export function createShards(
   width: number,
@@ -24,7 +25,11 @@ export function createShards(
   const shards: Shard[] = [];
   const cx = width / 2;
   const cy = height / 2;
-  const litColor = mixColor(color, 0xffffff, 0.55);
+  const litColor = mixColor(color, 0xffffff, 0.75);
+
+  // size shards off the brick's larger dimension (not the smaller one) so
+  // they read as substantial chunks rather than slivers
+  const baseSize = Math.max(width, height);
 
   for (let i = 0; i < count; i++) {
     const container = new Container();
@@ -33,23 +38,25 @@ export function createShards(
     const jitter = (Math.random() - 0.5) * 0.9;
     const angle = angleBase + jitter;
 
-    const r1 = Math.min(width, height) * (0.35 + Math.random() * 0.35);
+    const r1 = baseSize * (0.55 + Math.random() * 0.4);
     const spread = 0.7 + Math.random() * 0.6;
     const p1x = Math.cos(angle) * r1;
     const p1y = Math.sin(angle) * r1;
-    const p2x = Math.cos(angle + spread) * r1 * 0.55;
-    const p2y = Math.sin(angle + spread) * r1 * 0.55;
+    const p2x = Math.cos(angle + spread) * r1 * 0.6;
+    const p2y = Math.sin(angle + spread) * r1 * 0.6;
 
     const gfx = new Graphics();
+    // soft outer glow so the fragment pops against the dark scene
+    gfx.poly([0, 0, p1x, p1y, p2x, p2y]).fill({ color: litColor, alpha: 0.25 });
     // base fill for the whole fragment
-    gfx.poly([0, 0, p1x, p1y, p2x, p2y]).fill({ color, alpha: 0.95 });
-    // brighter lit sliver along one edge, like light catching a cut facet
+    gfx.poly([0, 0, p1x, p1y, p2x, p2y]).fill({ color, alpha: 1 });
+    // vivid lit sliver along one edge, like light catching a cut facet
     gfx.poly([0, 0, p1x, p1y, p1x * 0.5 + p2x * 0.5, p1y * 0.5 + p2y * 0.5]).fill({
       color: litColor,
-      alpha: 0.6,
+      alpha: 0.85,
     });
-    // thin rim so the silhouette stays crisp against the dark background
-    gfx.poly([0, 0, p1x, p1y, p2x, p2y]).stroke({ color: litColor, width: 0.75, alpha: 0.5 });
+    // bright rim so the silhouette stays crisp against the dark background
+    gfx.poly([0, 0, p1x, p1y, p2x, p2y]).stroke({ color: litColor, width: 1.5, alpha: 0.9 });
 
     container.addChild(gfx);
     container.x = cx;

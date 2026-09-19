@@ -1,5 +1,12 @@
 import { create } from "zustand";
-import { getBestScore, getResumeSnapshot, setBestScore } from "./storage";
+import {
+  getBestScore,
+  getHighestLevelPassed,
+  getResumeSnapshot,
+  resetHighestLevelPassed,
+  setBestScore,
+  setHighestLevelPassed,
+} from "./storage";
 import type { PowerUpType } from "@/game/powerups";
 
 const initialResume = typeof window !== "undefined" ? getResumeSnapshot() : null;
@@ -21,8 +28,11 @@ interface GameState {
   activePowerUp: PowerUpType | null;
   /** 0-1 remaining ratio for the active timed power-up; 1 = just activated */
   powerUpTimeRatio: number;
+  /** Highest level number fully cleared this session; "Start" resumes at highestLevelPassed + 1. */
+  highestLevelPassed: number;
 
   startGame: () => void;
+  restartFromLevelOne: () => void;
   restartLevel: () => void;
   goToTitle: () => void;
   pause: () => void;
@@ -42,6 +52,8 @@ interface GameState {
 export const LIVES_PER_LEVEL = 3;
 export const TOTAL_LEVELS = 8;
 
+const initialHighestLevel = typeof window !== "undefined" ? getHighestLevelPassed() : 0;
+
 export const useGameStore = create<GameState>((set, get) => ({
   phase: initialResume ? "playing" : "title",
   level: initialResume?.level ?? 1,
@@ -50,8 +62,24 @@ export const useGameStore = create<GameState>((set, get) => ({
   lives: initialResume?.lives ?? LIVES_PER_LEVEL,
   activePowerUp: null,
   powerUpTimeRatio: 0,
+  highestLevelPassed: initialHighestLevel,
 
   startGame: () =>
+    set((s) => {
+      const startLevel = Math.min(s.highestLevelPassed + 1, TOTAL_LEVELS);
+      return {
+        phase: "playing",
+        level: startLevel,
+        score: 0,
+        lives: LIVES_PER_LEVEL,
+        activePowerUp: null,
+        powerUpTimeRatio: 0,
+      };
+    }),
+
+  /** Full reset: forgets saved progress and begins again at level 1 (win screen's "restart from level 1"). */
+  restartFromLevelOne: () => {
+    resetHighestLevelPassed();
     set({
       phase: "playing",
       level: 1,
@@ -59,7 +87,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       lives: LIVES_PER_LEVEL,
       activePowerUp: null,
       powerUpTimeRatio: 0,
-    }),
+      highestLevelPassed: 0,
+    });
+  },
 
   restartLevel: () =>
     set({
@@ -98,9 +128,12 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   nextLevel: () =>
     set((s) => {
+      setHighestLevelPassed(s.level);
+      const highestLevelPassed = Math.max(s.highestLevelPassed, s.level);
+
       const nextLevelNum = s.level + 1;
       if (nextLevelNum > TOTAL_LEVELS) {
-        return { phase: "win" };
+        return { phase: "win", highestLevelPassed };
       }
       return {
         phase: "playing",
@@ -109,6 +142,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         lives: LIVES_PER_LEVEL,
         activePowerUp: null,
         powerUpTimeRatio: 0,
+        highestLevelPassed,
       };
     }),
 

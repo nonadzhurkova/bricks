@@ -49,7 +49,7 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
 
   const shards = createShards(width, height, color, ballDirX, ballDirY);
   shards.forEach((s) => {
-    s.container.scale = 0.6;
+    s.container.scale = 0.85;
     group.addChild(s.container);
   });
 
@@ -81,12 +81,12 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
   shards.forEach((s) => {
     tl.to(
       s.container,
-      { scale: 1.2, duration: 0.07, ease: "power1.out" },
+      { scale: 1.5, duration: 0.07, ease: "power1.out" },
       flightStart,
     )
       .to(
         s.container,
-        { scale: 0.55, duration: flightDuration - 0.07, ease: "power1.in" },
+        { scale: 0.9, duration: flightDuration - 0.07, ease: "power1.in" },
         flightStart + 0.07,
       )
       .to(

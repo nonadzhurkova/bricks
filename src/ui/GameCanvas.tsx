@@ -192,15 +192,11 @@ export default function GameCanvas() {
   return (
     <div
       ref={wrapperRef}
+      className="arena-canvas-wrap"
       style={{
-        position: "relative",
-        width: "100%",
-        height: "100%",
         maxWidth: ARENA_WIDTH,
         maxHeight: ARENA_HEIGHT,
         aspectRatio: `${ARENA_WIDTH} / ${ARENA_HEIGHT}`,
-        margin: "0 auto",
-        touchAction: "none",
       }}
     >
       <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />

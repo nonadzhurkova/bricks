@@ -6,7 +6,7 @@ import Overlay from "../Overlay";
 
 export default function WinScreen() {
   const score = useGameStore((s) => s.score);
-  const startGame = useGameStore((s) => s.startGame);
+  const restartFromLevelOne = useGameStore((s) => s.restartFromLevelOne);
 
   return (
     <Overlay>
@@ -18,7 +18,7 @@ export default function WinScreen() {
         You cleared Crystal Break!
       </motion.h1>
       <p>Final score: {score}</p>
-      <button className="primary-btn" onClick={startGame}>
+      <button className="primary-btn" onClick={restartFromLevelOne}>
         Restart from level 1
       </button>
     </Overlay>

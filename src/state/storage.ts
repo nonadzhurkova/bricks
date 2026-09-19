@@ -2,6 +2,7 @@ import type { SavedBrick } from "@/game/brickGrid";
 
 const BEST_SCORE_KEY = "crystal-break:best-score";
 const RESUME_KEY = "crystal-break:resume";
+const HIGHEST_LEVEL_KEY = "crystal-break:highest-level-passed";
 
 export interface ResumeSnapshot {
   level: number;
@@ -67,5 +68,37 @@ export function setBestScore(score: number): void {
     }
   } catch {
     // sessionStorage unavailable (private mode, etc.) — best score just won't persist
+  }
+}
+
+/** Highest level number the player has fully cleared this session (0 = none yet). */
+export function getHighestLevelPassed(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = window.sessionStorage.getItem(HIGHEST_LEVEL_KEY);
+    return raw ? Number(raw) || 0 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function setHighestLevelPassed(level: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getHighestLevelPassed();
+    if (level > current) {
+      window.sessionStorage.setItem(HIGHEST_LEVEL_KEY, String(level));
+    }
+  } catch {
+    // sessionStorage unavailable — progress just won't persist
+  }
+}
+
+export function resetHighestLevelPassed(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(HIGHEST_LEVEL_KEY);
+  } catch {
+    // ignore
   }
 }

@@ -30,7 +30,7 @@ export function playPowerUpRevealBreak(
 
   const shards = createShards(width, height, color, 0, 0);
   shards.forEach((s) => {
-    s.container.scale = 0.6;
+    s.container.scale = 0.75;
     group.addChild(s.container);
   });
 
