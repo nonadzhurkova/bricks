@@ -346,6 +346,11 @@ export class GameEngine {
   }
 
   private updateBall(dt: number): void {
+    // Level already cleared (win sweep in progress) — freeze the ball so it
+    // can't fall past the paddle and trigger a life-lost / game-over in the
+    // brief window before onLevelClear fires.
+    if (this.levelClearTriggered) return;
+
     if (this.ballAttached) {
       this.syncAttachedBallPosition();
       return;
