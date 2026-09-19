@@ -29,7 +29,10 @@ export function playPowerUpRevealBreak(
   const dropY = height / 2;
 
   const shards = createShards(width, height, color, 0, 0);
-  shards.forEach((s) => group.addChild(s.gfx));
+  shards.forEach((s) => {
+    s.container.scale = 0.6;
+    group.addChild(s.container);
+  });
 
   const tl = gsap.timeline({
     onComplete: () => group.destroy({ children: true }),
@@ -38,23 +41,28 @@ export function playPowerUpRevealBreak(
   tl.to(flash, { alpha: 1, duration: 0.04 }).to(flash, { alpha: 0, duration: 0.08 });
 
   shards.forEach((s) => {
-    // converge toward drop point first
-    tl.to(
-      s.gfx,
-      { x: dropX, y: dropY, duration: 0.15, ease: "power2.in" },
-      0,
-    ).to(
-      s.gfx,
-      {
-        x: `+=${s.vx * 0.25}`,
-        y: `+=${s.vy * 0.25 + 30}`,
-        alpha: 0,
-        rotation: s.vr,
-        duration: 0.2,
-        ease: "power1.out",
-      },
-      0.15,
-    );
+    // converge toward drop point first, then scatter and fall away visibly
+    tl.to(s.container, { x: dropX, y: dropY, scale: 0.9, duration: 0.15, ease: "power2.in" }, 0)
+      .to(
+        s.container,
+        {
+          x: `+=${s.vx * 0.6}`,
+          rotation: s.vr * 2,
+          duration: 0.3,
+          ease: "power1.out",
+        },
+        0.15,
+      )
+      .to(
+        s.container,
+        {
+          y: `+=${s.vy * 0.4 + 90}`,
+          duration: 0.3,
+          ease: "power2.in",
+        },
+        0.15,
+      )
+      .to(s.container, { alpha: 0, duration: 0.14, ease: "power1.in" }, 0.31);
   });
 
   tl.call(onCapsuleReady, undefined, 0.15);

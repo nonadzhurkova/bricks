@@ -73,6 +73,9 @@ interface LaserBolt {
 }
 
 export class GameEngine {
+  /** Chained explosive shockwaves can themselves trigger further explosions; cap the recursion so a dense cluster can't cascade forever. */
+  private static readonly MAX_EXPLOSION_CHAIN_DEPTH = 2;
+
   private app: Application;
   private callbacks: EngineCallbacks;
 
@@ -436,16 +439,25 @@ export class GameEngine {
     localContactX: number,
     localContactY: number,
     incomingDir: Vec2,
+    explosionDepth = 0,
   ): void {
     if (brick.type === "indestructible") {
       playIndestructibleSpark(this.effectsLayer, brick.x + localContactX, brick.y + localContactY);
       return;
     }
 
-    this.currentSpeed = accelerateOnRally(this.currentSpeed, this.baseSpeed);
-    this.ballVel = rescaleVelocity(this.ballVel, this.effectiveSpeed());
+    // A chain-reaction hit forces a full break (matches an explosion's real
+    // blast) instead of going through the ball's incremental hit-point
+    // model; direct hits still decrement normally.
+    const isChainHit = explosionDepth > 0;
+    if (isChainHit) {
+      brick.hitsRemaining = 0;
+    } else {
+      this.currentSpeed = accelerateOnRally(this.currentSpeed, this.baseSpeed);
+      this.ballVel = rescaleVelocity(this.ballVel, this.effectiveSpeed());
+      brick.hitsRemaining -= 1;
+    }
 
-    brick.hitsRemaining -= 1;
     this.callbacks.onScore(BRICK_SCORE[brick.type]);
 
     const mag = Math.hypot(incomingDir.x, incomingDir.y) || 1;
@@ -470,8 +482,8 @@ export class GameEngine {
     // brick breaks fully
     this.breakBrick(brick, awayX, awayY);
 
-    if (brick.type === "explosive") {
-      this.triggerExplosion(brick);
+    if (brick.type === "explosive" && explosionDepth < GameEngine.MAX_EXPLOSION_CHAIN_DEPTH) {
+      this.triggerExplosion(brick, explosionDepth + 1);
     }
 
     if (allBreakableBricksCleared(this.bricks)) {
@@ -513,7 +525,15 @@ export class GameEngine {
     }
   }
 
-  private triggerExplosion(sourceBrick: Brick): void {
+  /**
+   * Expanding shockwave from an exploding brick: any non-indestructible
+   * brick within radius is chained via `handleBrickHit` (so it gets a full
+   * break — including its own break animation, and its own shockwave if
+   * it's also explosive) after a delay proportional to its distance from
+   * the blast center. Indestructible bricks in range spark instead of
+   * breaking. `depth` caps chained explosions from re-triggering forever.
+   */
+  private triggerExplosion(sourceBrick: Brick, depth = 1): void {
     const centerX = sourceBrick.x + sourceBrick.width / 2;
     const centerY = sourceBrick.y + sourceBrick.height / 2;
     const shockwaveRadius = sourceBrick.width * 3;
@@ -529,22 +549,15 @@ export class GameEngine {
 
     chainExplosiveHits(centerX, centerY, touching, (brick) => {
       if (!brick.alive) return;
+
       if (brick.type === "indestructible") {
         playIndestructibleSpark(this.effectsLayer, brick.x + brick.width / 2, brick.y + brick.height / 2);
         return;
       }
-      brick.hitsRemaining = 0;
-      this.callbacks.onScore(BRICK_SCORE[brick.type]);
+
       const dx = brick.x + brick.width / 2 - centerX;
       const dy = brick.y + brick.height / 2 - centerY;
-      const mag = Math.hypot(dx, dy) || 1;
-      this.breakBrick(brick, dx / mag, dy / mag);
-
-      if (allBreakableBricksCleared(this.bricks)) {
-        this.playLevelClearSweep();
-      }
-
-      this.callbacks.onBricksChanged?.(this.bricks);
+      this.handleBrickHit(brick, brick.width / 2, brick.height / 2, { x: dx, y: dy }, depth);
     });
   }
 

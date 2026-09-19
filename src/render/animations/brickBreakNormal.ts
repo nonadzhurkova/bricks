@@ -17,9 +17,11 @@ export interface BreakAnimOptions {
 }
 
 /**
- * Normal brick (1-hit) shatter: white impact flash -> crack lines -> shatter
- * into 5-7 shards flying outward -> fade/drift -> soft radial glow pulse.
- * Resolves well under 350ms.
+ * Normal brick (1-hit) shatter: white impact flash -> crack lines -> shards
+ * pop and fly outward on a ballistic arc, tumbling and falling under gravity,
+ * fading only in their last stretch -> soft radial glow pulse. Each call
+ * owns an independent GSAP timeline, so overlapping breaks during a fast
+ * rally run concurrently rather than queuing.
  */
 export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
   const { layer, x, y, width, height, color, ballDirX, ballDirY, onComplete } = opts;
@@ -46,7 +48,10 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
   group.addChild(glow);
 
   const shards = createShards(width, height, color, ballDirX, ballDirY);
-  shards.forEach((s) => group.addChild(s.gfx));
+  shards.forEach((s) => {
+    s.container.scale = 0.6;
+    group.addChild(s.container);
+  });
 
   const tl = gsap.timeline({
     onComplete: () => {
@@ -65,19 +70,49 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
     )
     .set(glow, { alpha: 0.6 }, "<");
 
+  // Shards pop slightly larger than their resting size on the initial burst,
+  // then fly outward on a real ballistic arc (fast horizontal travel, a
+  // gravity-accelerated fall, and tumbling rotation) before fading only in
+  // their last stretch — so the break clearly reads as pieces scattering
+  // and dropping, not just a flash.
+  const flightStart = 0.05; // let the impact flash/crack read first
+  const flightDuration = 0.55;
+
   shards.forEach((s) => {
     tl.to(
-      s.gfx,
-      {
-        x: `+=${s.vx * 0.3}`,
-        y: `+=${s.vy * 0.3 + 40}`, // gravity drift down
-        rotation: s.vr,
-        alpha: 0,
-        duration: 0.3,
-        ease: "power1.out",
-      },
-      "<",
-    );
+      s.container,
+      { scale: 1.2, duration: 0.07, ease: "power1.out" },
+      flightStart,
+    )
+      .to(
+        s.container,
+        { scale: 0.55, duration: flightDuration - 0.07, ease: "power1.in" },
+        flightStart + 0.07,
+      )
+      .to(
+        s.container,
+        {
+          x: `+=${s.vx * flightDuration * 2.2}`,
+          rotation: s.vr * 3,
+          duration: flightDuration,
+          ease: "power1.out",
+        },
+        flightStart,
+      )
+      .to(
+        s.container,
+        {
+          y: `+=${s.vy * flightDuration + 260}`, // strong downward gravity pull
+          duration: flightDuration,
+          ease: "power2.in", // accelerating fall
+        },
+        flightStart,
+      )
+      .to(
+        s.container,
+        { alpha: 0, duration: flightDuration * 0.35, ease: "power1.in" },
+        flightStart + flightDuration * 0.65,
+      );
   });
 
   return tl;
