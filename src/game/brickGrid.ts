@@ -27,6 +27,12 @@ export interface Brick {
   alive: boolean;
 }
 
+/** Minimal per-brick shape needed to persist/restore exact brick state (no derived x/y/width/height). */
+export type SavedBrick = Pick<
+  Brick,
+  "id" | "col" | "row" | "type" | "hitsRemaining" | "maxHits" | "powerUp" | "alive"
+>;
+
 function pickPowerUp(rng: () => number): PowerUpType | null {
   if (rng() > POWERUP_DROP_CHANCE) return null;
   const idx = Math.floor(rng() * POWERUP_DROP_TABLE.length);
@@ -71,4 +77,15 @@ export function buildBricksFromLevel(level: LevelDef, rng: () => number = Math.r
 
 export function allBreakableBricksCleared(bricks: Brick[]): boolean {
   return bricks.every((b) => !b.alive || b.type === "indestructible");
+}
+
+/** Rebuilds positioned Brick[] from a resume snapshot's saved bricks, deriving x/y from col/row. */
+export function bricksFromSaved(saved: SavedBrick[]): Brick[] {
+  return saved.map((s) => ({
+    ...s,
+    x: BRICK_SIDE_MARGIN + s.col * (BRICK_WIDTH + BRICK_GAP),
+    y: BRICK_TOP_MARGIN + s.row * (BRICK_HEIGHT + BRICK_GAP),
+    width: BRICK_WIDTH,
+    height: BRICK_HEIGHT,
+  }));
 }

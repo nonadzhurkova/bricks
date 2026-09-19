@@ -7,6 +7,26 @@ import { levels } from "@/game/levels";
 import { ARENA_HEIGHT, ARENA_WIDTH } from "@/game/constants";
 import { useGameStore } from "@/state/store";
 import TimerBar from "./TimerBar";
+import { bricksFromSaved, type Brick } from "@/game/brickGrid";
+import { clearResumeSnapshot, getResumeSnapshot, saveResumeSnapshot } from "@/state/storage";
+
+function saveSnapshotIfLive(engine: GameEngine): void {
+  const s = useGameStore.getState();
+  if (s.phase !== "playing" && s.phase !== "paused") return;
+  const bricks = engine
+    .getBricks()
+    .map(({ id, col, row, type, hitsRemaining, maxHits, powerUp, alive }: Brick) => ({
+      id,
+      col,
+      row,
+      type,
+      hitsRemaining,
+      maxHits,
+      powerUp,
+      alive,
+    }));
+  saveResumeSnapshot({ level: s.level, score: s.score, lives: s.lives, bricks });
+}
 
 export default function GameCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -16,6 +36,8 @@ export default function GameCanvas() {
   const phase = useGameStore((s) => s.phase);
   const level = useGameStore((s) => s.level);
   const activePowerUp = useGameStore((s) => s.activePowerUp);
+
+  const prevLevelRef = useRef<number | null>(null);
 
   // Mount Pixi + engine once.
   useEffect(() => {
@@ -33,15 +55,27 @@ export default function GameCanvas() {
       engine = new GameEngine(app, {
         onScore: (points) => useGameStore.getState().addScore(points),
         onLifeLost: () => useGameStore.getState().loseLife(),
-        onLevelClear: () => useGameStore.getState().levelClear(),
+        onLevelClear: () => {
+          clearResumeSnapshot();
+          useGameStore.getState().levelClear();
+        },
         onPowerUpCaught: () => {},
         onPowerUpChanged: (type) => useGameStore.getState().setActivePowerUp(type),
         onPowerUpTimeRatio: (ratio) => useGameStore.getState().setPowerUpTimeRatio(ratio),
         onExtraLife: () => useGameStore.getState().addLife(),
+        onBricksChanged: () => saveSnapshotIfLive(engine!),
       });
       engineRef.current = engine;
-      const currentLevel = levels[useGameStore.getState().level - 1] ?? levels[0];
-      engine.loadLevel(currentLevel, useGameStore.getState().level);
+
+      const currentLevelNum = useGameStore.getState().level;
+      const currentLevel = levels[currentLevelNum - 1] ?? levels[0];
+
+      const snapshot = getResumeSnapshot();
+      const savedBricks =
+        snapshot && snapshot.level === currentLevelNum ? bricksFromSaved(snapshot.bricks) : undefined;
+
+      engine.loadLevel(currentLevel, currentLevelNum, savedBricks);
+      prevLevelRef.current = currentLevelNum;
       engine.start();
     })();
 
@@ -54,7 +88,6 @@ export default function GameCanvas() {
   }, []);
 
   // Reload level when the level number changes (next level, or restart).
-  const prevLevelRef = useRef<number | null>(null);
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -68,6 +101,7 @@ export default function GameCanvas() {
   // React to life-loss / restart-level transitions driven by store phase.
   const prevLivesRef = useRef<number>(3);
   const lives = useGameStore((s) => s.lives);
+  const score = useGameStore((s) => s.score);
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -75,7 +109,9 @@ export default function GameCanvas() {
       engine.resetBallOnPaddle();
     }
     prevLivesRef.current = lives;
-  }, [lives]);
+
+    saveSnapshotIfLive(engine);
+  }, [lives, score]);
 
   // On restart (gameOver -> playing via retry) rebuild bricks; on entering
   // gameOver, play the paddle-flash/ball-fade effect.
@@ -89,6 +125,14 @@ export default function GameCanvas() {
     }
     if (prevPhaseRef.current !== "gameOver" && phase === "gameOver") {
       engine.playGameOverEffect();
+    }
+    if (phase === "gameOver" || phase === "win" || phase === "title") {
+      clearResumeSnapshot();
+    }
+    if (phase === "playing") {
+      engine.start();
+    } else if (phase === "paused") {
+      engine.stop();
     }
     prevPhaseRef.current = phase;
   }, [phase]);
@@ -151,7 +195,9 @@ export default function GameCanvas() {
       style={{
         position: "relative",
         width: "100%",
+        height: "100%",
         maxWidth: ARENA_WIDTH,
+        maxHeight: ARENA_HEIGHT,
         aspectRatio: `${ARENA_WIDTH} / ${ARENA_HEIGHT}`,
         margin: "0 auto",
         touchAction: "none",

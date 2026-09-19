@@ -10,6 +10,7 @@ import LevelClearOverlay from "@/ui/screens/LevelClearOverlay";
 import GameOverOverlay from "@/ui/screens/GameOverOverlay";
 import WinScreen from "@/ui/screens/WinScreen";
 import { useGameStore } from "@/state/store";
+import StarfieldBackground from "@/ui/StarfieldBackground";
 
 export default function Home() {
   const phase = useGameStore((s) => s.phase);
@@ -31,6 +32,7 @@ export default function Home() {
 
   return (
     <div className="game-root">
+      <StarfieldBackground />
       <div className="arena-wrap">
         <GameCanvas />
         {phase === "playing" && <HUD />}

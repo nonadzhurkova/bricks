@@ -10,7 +10,7 @@ export async function createPixiApp(canvas: HTMLCanvasElement): Promise<Applicat
     backgroundAlpha: 0,
     antialias: true,
     resolution: Math.min(window.devicePixelRatio || 1, 2),
-    autoDensity: true,
+    autoDensity: false,
   });
   return app;
 }

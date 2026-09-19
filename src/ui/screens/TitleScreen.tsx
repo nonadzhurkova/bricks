@@ -10,6 +10,7 @@ export default function TitleScreen() {
   return (
     <Overlay>
       <h1 style={{ fontSize: 40, margin: 0, letterSpacing: 1 }}>Crystal Break</h1>
+      <p className="credit-line">by Nona Dzhurkova</p>
       {bestScore > 0 && <p style={{ opacity: 0.7 }}>Best score: {bestScore}</p>}
       <button className="primary-btn" onClick={startGame}>
         Start

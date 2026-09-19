@@ -55,6 +55,8 @@ export interface EngineCallbacks {
   onPowerUpChanged?: (type: PowerUpType | null) => void;
   onPowerUpTimeRatio?: (ratio: number) => void;
   onExtraLife?: () => void;
+  /** Fired whenever brick state changes (hit, break, level load) so the host can persist a resume snapshot. */
+  onBricksChanged?: (bricks: Brick[]) => void;
 }
 
 interface FallingCapsule {
@@ -138,7 +140,13 @@ export class GameEngine {
     this.app.ticker.add(this.tick);
   }
 
-  loadLevel(level: LevelDef, levelNumber: number): void {
+  /**
+   * Loads a level's bricks. Pass `savedBricks` (e.g. from a sessionStorage
+   * resume snapshot) to restore an exact in-progress brick state instead of
+   * generating a fresh one; in that case entrance/stagger animation is
+   * skipped since this isn't a "new level" moment.
+   */
+  loadLevel(level: LevelDef, levelNumber: number, savedBricks?: Brick[]): void {
     this.level = level;
     this.baseSpeed = baseSpeedForLevel(levelNumber, BASE_SPEED, SPEED_PER_LEVEL_INCREASE);
     this.currentSpeed = this.baseSpeed;
@@ -149,33 +157,45 @@ export class GameEngine {
     this.capsules = [];
     this.laserLayer.removeChildren();
     this.lasers = [];
-    this.bricks = buildBricksFromLevel(level);
+    this.bricks = savedBricks ?? buildBricksFromLevel(level);
     this.clearPowerUp();
     this.levelClearTriggered = false;
 
+    const animateEntrance = !savedBricks;
+
     this.bricks.forEach((brick, i) => {
-      const sprite = createBrickGraphics(brick.type, brick.width, brick.height);
+      if (!brick.alive) return;
+      const sprite = createBrickGraphics(
+        brick.type,
+        brick.width,
+        brick.height,
+        brick.type === "reinforced" && brick.hitsRemaining < brick.maxHits,
+      );
       sprite.x = brick.x;
       sprite.y = brick.y;
-      sprite.alpha = 0;
-      sprite.scale.set(0.6);
       this.brickLayer.addChild(sprite);
       this.brickSprites.set(brick.id, sprite);
 
-      gsap.to(sprite, {
-        alpha: 1,
-        duration: 0.22,
-        delay: i * 0.015,
-        ease: "back.out(1.6)",
-      });
-      gsap.to(sprite.scale, {
-        x: 1,
-        y: 1,
-        duration: 0.22,
-        delay: i * 0.015,
-        ease: "back.out(1.6)",
-      });
+      if (animateEntrance) {
+        sprite.alpha = 0;
+        sprite.scale.set(0.6);
+        gsap.to(sprite, {
+          alpha: 1,
+          duration: 0.22,
+          delay: i * 0.015,
+          ease: "back.out(1.6)",
+        });
+        gsap.to(sprite.scale, {
+          x: 1,
+          y: 1,
+          duration: 0.22,
+          delay: i * 0.015,
+          ease: "back.out(1.6)",
+        });
+      }
     });
+
+    this.callbacks.onBricksChanged?.(this.bricks);
 
     gsap.killTweensOf(this.ball.container);
     gsap.killTweensOf(this.world.scale);
@@ -185,6 +205,10 @@ export class GameEngine {
     this.lastTime = performance.now();
 
     this.resetBallOnPaddle();
+  }
+
+  getBricks(): Brick[] {
+    return this.bricks;
   }
 
   /** Resets ball to attached-on-paddle state, keeping current brick state (life lost mid-level). */
@@ -286,10 +310,12 @@ export class GameEngine {
   start(): void {
     this.running = true;
     this.lastTime = performance.now();
+    gsap.globalTimeline.resume();
   }
 
   stop(): void {
     this.running = false;
+    gsap.globalTimeline.pause();
   }
 
   destroy(): void {
@@ -437,6 +463,7 @@ export class GameEngine {
         this.brickLayer.addChild(dimmed);
         this.brickSprites.set(brick.id, dimmed);
       }
+      this.callbacks.onBricksChanged?.(this.bricks);
       return;
     }
 
@@ -450,6 +477,8 @@ export class GameEngine {
     if (allBreakableBricksCleared(this.bricks)) {
       this.playLevelClearSweep();
     }
+
+    this.callbacks.onBricksChanged?.(this.bricks);
   }
 
   private breakBrick(brick: Brick, awayX: number, awayY: number): void {
@@ -514,6 +543,8 @@ export class GameEngine {
       if (allBreakableBricksCleared(this.bricks)) {
         this.playLevelClearSweep();
       }
+
+      this.callbacks.onBricksChanged?.(this.bricks);
     });
   }
 

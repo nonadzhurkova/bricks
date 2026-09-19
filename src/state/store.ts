@@ -1,6 +1,8 @@
 import { create } from "zustand";
-import { getBestScore, setBestScore } from "./storage";
+import { getBestScore, getResumeSnapshot, setBestScore } from "./storage";
 import type { PowerUpType } from "@/game/powerups";
+
+const initialResume = typeof window !== "undefined" ? getResumeSnapshot() : null;
 
 export type GamePhase =
   | "title"
@@ -41,11 +43,11 @@ export const LIVES_PER_LEVEL = 3;
 export const TOTAL_LEVELS = 8;
 
 export const useGameStore = create<GameState>((set, get) => ({
-  phase: "title",
-  level: 1,
-  score: 0,
+  phase: initialResume ? "playing" : "title",
+  level: initialResume?.level ?? 1,
+  score: initialResume?.score ?? 0,
   bestScore: 0,
-  lives: LIVES_PER_LEVEL,
+  lives: initialResume?.lives ?? LIVES_PER_LEVEL,
   activePowerUp: null,
   powerUpTimeRatio: 0,
 
