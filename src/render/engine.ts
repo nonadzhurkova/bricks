@@ -630,7 +630,9 @@ export class GameEngine {
     this.stopSlowRipple?.();
     this.stopSlowRipple = null;
     this.slowActive = false;
-    this.ballStuckToPaddle = false;
+    if (this.ballStuckToPaddle) {
+      this.releaseStuckBall();
+    }
     this.setPaddleWidth(this.basePaddleWidth);
     drawPaddleBody(this.paddle.body, this.paddleWidth, PADDLE_HEIGHT, "normal");
 
