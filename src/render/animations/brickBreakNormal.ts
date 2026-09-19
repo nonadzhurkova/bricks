@@ -72,11 +72,13 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
 
   // Shards pop slightly larger than their resting size on the initial burst,
   // then fly outward on a real ballistic arc (fast horizontal travel, a
-  // gravity-accelerated fall, and tumbling rotation) before fading only in
-  // their last stretch — so the break clearly reads as pieces scattering
-  // and dropping, not just a flash.
+  // gravity-accelerated fall, and tumbling rotation), drifting and
+  // twinkling for a while before fading in their last stretch — like
+  // firework embers lingering rather than snapping away instantly.
   const flightStart = 0.05; // let the impact flash/crack read first
-  const flightDuration = 0.55;
+  const flightDuration = 1.1;
+  const fadeStart = flightDuration * 0.55;
+  const fadeDuration = flightDuration - fadeStart;
 
   shards.forEach((s) => {
     tl.to(
@@ -92,8 +94,8 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
       .to(
         s.container,
         {
-          x: `+=${s.vx * flightDuration * 0.9}`,
-          rotation: s.vr * 3,
+          x: `+=${s.vx * flightDuration * 0.55}`,
+          rotation: s.vr * 4,
           duration: flightDuration,
           ease: "power1.out",
         },
@@ -102,16 +104,28 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
       .to(
         s.container,
         {
-          y: `+=${s.vy * flightDuration * 0.6 + 110}`, // gravity pull, contained near the brick
+          y: `+=${s.vy * flightDuration * 0.35 + 150}`, // gentler gravity so pieces hang longer
           duration: flightDuration,
-          ease: "power2.in", // accelerating fall
+          ease: "power1.in", // accelerating fall, but less aggressively
         },
         flightStart,
       )
+      // gentle twinkle while embers drift, then fade out over a long tail
       .to(
         s.container,
-        { alpha: 0, duration: flightDuration * 0.35, ease: "power1.in" },
-        flightStart + flightDuration * 0.65,
+        {
+          alpha: 0.55,
+          duration: 0.12,
+          repeat: 3,
+          yoyo: true,
+          ease: "sine.inOut",
+        },
+        flightStart + 0.15,
+      )
+      .to(
+        s.container,
+        { alpha: 0, duration: fadeDuration, ease: "power1.in" },
+        flightStart + fadeStart,
       );
   });
 
