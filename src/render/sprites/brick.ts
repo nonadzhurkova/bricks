@@ -35,7 +35,33 @@ export function createBrickGraphics(
     .fill({ color: palette.shadow, alpha: 0.35 });
 
   container.addChild(body, highlight, shadow);
+
+  // A reinforced brick that's taken its first hit (dimShade) keeps a
+  // visible crack scratched into it until the second hit breaks it.
+  if (dimShade) {
+    container.addChild(createCrackOverlay(width, height));
+  }
+
   return container;
+}
+
+/** Persistent crack-line overlay baked into a brick sprite (used for a reinforced brick's cracked first-hit state). */
+function createCrackOverlay(width: number, height: number): Graphics {
+  const cx = width / 2;
+  const cy = height / 2;
+  const crack = new Graphics();
+
+  const angle = Math.random() * Math.PI * 2;
+  crack
+    .moveTo(width * 0.15, height * 0.2)
+    .lineTo(cx + Math.cos(angle) * width * 0.22, cy + Math.sin(angle) * height * 0.3)
+    .lineTo(width * 0.85, height * 0.8);
+  crack
+    .moveTo(cx + Math.cos(angle) * width * 0.22, cy + Math.sin(angle) * height * 0.3)
+    .lineTo(width * 0.75, height * 0.2);
+  crack.stroke({ color: 0xffffff, width: 1.25, alpha: 0.55 });
+
+  return crack;
 }
 
 function mixColor(a: number, b: number, t: number): number {

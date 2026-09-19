@@ -49,7 +49,7 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
 
   const shards = createShards(width, height, color, ballDirX, ballDirY);
   shards.forEach((s) => {
-    s.container.scale = 0.85;
+    s.container.scale = 0.7;
     group.addChild(s.container);
   });
 
@@ -81,18 +81,18 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
   shards.forEach((s) => {
     tl.to(
       s.container,
-      { scale: 1.5, duration: 0.07, ease: "power1.out" },
+      { scale: 1.05, duration: 0.07, ease: "power1.out" },
       flightStart,
     )
       .to(
         s.container,
-        { scale: 0.9, duration: flightDuration - 0.07, ease: "power1.in" },
+        { scale: 0.55, duration: flightDuration - 0.07, ease: "power1.in" },
         flightStart + 0.07,
       )
       .to(
         s.container,
         {
-          x: `+=${s.vx * flightDuration * 2.2}`,
+          x: `+=${s.vx * flightDuration * 0.9}`,
           rotation: s.vr * 3,
           duration: flightDuration,
           ease: "power1.out",
@@ -102,7 +102,7 @@ export function playNormalBreak(opts: BreakAnimOptions): gsap.core.Timeline {
       .to(
         s.container,
         {
-          y: `+=${s.vy * flightDuration + 260}`, // strong downward gravity pull
+          y: `+=${s.vy * flightDuration * 0.6 + 110}`, // gravity pull, contained near the brick
           duration: flightDuration,
           ease: "power2.in", // accelerating fall
         },

@@ -27,9 +27,10 @@ export function createShards(
   const cy = height / 2;
   const litColor = mixColor(color, 0xffffff, 0.75);
 
-  // size shards off the brick's larger dimension (not the smaller one) so
-  // they read as substantial chunks rather than slivers
-  const baseSize = Math.max(width, height);
+  // Size shards off the brick's shorter dimension (its height, since bricks
+  // are much wider than tall) so fragments stay proportional to the brick
+  // itself rather than ballooning past it.
+  const baseSize = Math.min(width, height);
 
   for (let i = 0; i < count; i++) {
     const container = new Container();
@@ -38,7 +39,7 @@ export function createShards(
     const jitter = (Math.random() - 0.5) * 0.9;
     const angle = angleBase + jitter;
 
-    const r1 = baseSize * (0.55 + Math.random() * 0.4);
+    const r1 = baseSize * (0.35 + Math.random() * 0.3);
     const spread = 0.7 + Math.random() * 0.6;
     const p1x = Math.cos(angle) * r1;
     const p1y = Math.sin(angle) * r1;
