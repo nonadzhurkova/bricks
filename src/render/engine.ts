@@ -98,6 +98,8 @@ export class GameEngine {
   private ballAttached = true;
   private ballStuckToPaddle = false;
   private ballStickOffsetX = 0;
+  /** True from the moment the ball drops out of bounds until resetBallOnPaddle/resetLevel/loadLevel reclaims it — suppresses repeat onLifeLost calls for the frames before React's phase-change effect runs (loseLife() decrements every call, so an un-suppressed repeat would burn multiple lives from a single drop). */
+  private ballLost = false;
 
   private baseSpeed = BASE_SPEED;
   private currentSpeed = BASE_SPEED;
@@ -213,6 +215,7 @@ export class GameEngine {
   /** Resets ball to attached-on-paddle state, keeping current brick state (life lost mid-level). */
   resetBallOnPaddle(): void {
     this.clearPowerUp();
+    this.ballLost = false;
     this.ballAttached = true;
     this.ballStuckToPaddle = false;
     this.currentSpeed = this.baseSpeed;
@@ -349,7 +352,7 @@ export class GameEngine {
     // Level already cleared (win sweep in progress) — freeze the ball so it
     // can't fall past the paddle and trigger a life-lost / game-over in the
     // brief window before onLevelClear fires.
-    if (this.levelClearTriggered) return;
+    if (this.levelClearTriggered || this.ballLost) return;
 
     if (this.ballAttached) {
       this.syncAttachedBallPosition();
@@ -369,12 +372,18 @@ export class GameEngine {
     const maxStep = BALL_RADIUS / this.currentSpeed;
     while (remaining > 0) {
       const step = Math.min(remaining, maxStep);
-      this.stepBall(step);
+      const lost = this.stepBall(step);
+      // ball fell out of bounds — onLifeLost already fired; stop stepping
+      // this frame so we don't call it again for every remaining substep
+      // (loseLife() decrements every call, so this could burn multiple
+      // lives from a single drop before the phase change takes effect)
+      if (lost) return;
       remaining -= step;
     }
   }
 
-  private stepBall(dt: number): void {
+  /** Advances the ball by dt; returns true if the ball was lost this step. */
+  private stepBall(dt: number): boolean {
     this.ballPos.x += this.ballVel.x * dt;
     this.ballPos.y += this.ballVel.y * dt;
 
@@ -397,8 +406,9 @@ export class GameEngine {
         this.ballPos.y = ARENA_HEIGHT - BALL_RADIUS;
         this.ballVel.y = -Math.abs(this.ballVel.y);
       } else {
+        this.ballLost = true;
         this.callbacks.onLifeLost();
-        return;
+        return true;
       }
     }
 
@@ -414,13 +424,13 @@ export class GameEngine {
         this.ballStickOffsetX = this.ballPos.x - this.paddleX;
         this.ballVel = { x: 0, y: 0 };
         this.ballPos.y = paddleRect.y - BALL_RADIUS - 1;
-        return;
+        return false;
       }
 
       this.currentSpeed = this.baseSpeed;
       this.ballVel = paddleBounce(this.ballPos.x, paddleRect, this.effectiveSpeed());
       this.ballPos.y = paddleRect.y - BALL_RADIUS - 1;
-      return;
+      return false;
     }
 
     // brick collisions
@@ -437,6 +447,8 @@ export class GameEngine {
       this.handleBrickHit(brick, hit.contact.x - brick.x, hit.contact.y - brick.y);
       break;
     }
+
+    return false;
   }
 
   private handleBrickHit(
