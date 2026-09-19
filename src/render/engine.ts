@@ -201,6 +201,8 @@ export class GameEngine {
     gsap.killTweensOf(this.ball.container);
     gsap.killTweensOf(this.world.scale);
     this.world.scale.set(1);
+    this.world.pivot.set(0, 0);
+    this.world.position.set(0, 0);
     this.ball.container.alpha = 1;
     this.running = true;
     this.lastTime = performance.now();
@@ -587,6 +589,12 @@ export class GameEngine {
       });
     });
 
+    // Pivot the pull-back around the arena's center instead of its
+    // top-left origin — scaling `world` directly shifted the whole canvas
+    // up-and-left toward (0,0), reading as a jarring jump right before the
+    // level-cleared message.
+    this.world.pivot.set(ARENA_WIDTH / 2, ARENA_HEIGHT / 2);
+    this.world.position.set(ARENA_WIDTH / 2, ARENA_HEIGHT / 2);
     gsap.to(this.world.scale, {
       x: 0.97,
       y: 0.97,
@@ -594,6 +602,10 @@ export class GameEngine {
       yoyo: true,
       repeat: 1,
       ease: "power1.inOut",
+      onComplete: () => {
+        this.world.pivot.set(0, 0);
+        this.world.position.set(0, 0);
+      },
     });
 
     gsap.delayedCall(0.35, () => {
