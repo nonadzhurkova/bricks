@@ -13,6 +13,7 @@ const PADDLE_COLORS: Record<PaddleVisualState, { fill: number; highlight: number
   extraLife: { fill: 0x8b5cf6, highlight: 0xc4b5fd },
   wall: { fill: 0x22c55e, highlight: 0x86efac },
   magnet: { fill: 0xec4899, highlight: 0xf9a8d4 },
+  fireball: { fill: 0xf97316, highlight: 0xfdba74 },
 };
 
 export interface PaddleSprite {

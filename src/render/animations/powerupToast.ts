@@ -11,6 +11,7 @@ const POWERUP_MESSAGES: Record<PowerUpType, string> = {
   extraLife: "+1 Life",
   wall: "Floor Sealed",
   magnet: "Magnet Paddle",
+  fireball: "Fireball!",
 };
 
 /** Floating label that rises and fades, explaining what a caught power-up does. */

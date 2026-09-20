@@ -1,4 +1,13 @@
-export type PowerUpType = "enlarge" | "reduce" | "laser" | "catch" | "slow" | "extraLife" | "wall" | "magnet";
+export type PowerUpType =
+  | "enlarge"
+  | "reduce"
+  | "laser"
+  | "catch"
+  | "slow"
+  | "extraLife"
+  | "wall"
+  | "magnet"
+  | "fireball";
 
 export interface PowerUpDef {
   type: PowerUpType;
@@ -17,6 +26,7 @@ export const POWERUPS: Record<PowerUpType, PowerUpDef> = {
   extraLife: { type: "extraLife", label: "+1", color: 0xf472b6 },
   wall: { type: "wall", label: "W", color: 0x22c55e, duration: 10000 },
   magnet: { type: "magnet", label: "M", color: 0xec4899, duration: 15000 },
+  fireball: { type: "fireball", label: "F", color: 0xf97316, duration: 8000 },
 };
 
 export const POWERUP_DROP_TABLE: PowerUpType[] = [
@@ -28,4 +38,5 @@ export const POWERUP_DROP_TABLE: PowerUpType[] = [
   "extraLife",
   "wall",
   "magnet",
+  "fireball",
 ];

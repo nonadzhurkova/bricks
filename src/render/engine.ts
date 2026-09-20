@@ -29,7 +29,7 @@ import { BRICK_SCORE } from "@/game/brickTypes";
 import { allBreakableBricksCleared, buildBricksFromLevel, type Brick } from "@/game/brickGrid";
 import type { LevelDef } from "@/game/levels/types";
 import { POWERUPS, type PowerUpType } from "@/game/powerups";
-import { createBallSprite, updateBallTrail, type BallSprite } from "./sprites/ball";
+import { createBallSprite, setBallFireball, updateBallTrail, type BallSprite } from "./sprites/ball";
 import { createPaddleSprite, drawPaddleBody, type PaddleSprite } from "./sprites/paddle";
 import { BRICK_PALETTE, createBrickGraphics, createRegrowGhost } from "./sprites/brick";
 import { startRegrowIdlePulse } from "./animations/regrowPulse";
@@ -497,6 +497,25 @@ export class GameEngine {
     }
 
     // brick collisions
+    if (this.activePowerUp === "fireball") {
+      // Passes straight through every brick in its path — no bounce, no
+      // penetration push-back, no speed rescale. Indestructible bricks are
+      // ignored entirely (can't be burned, so no spark/effect either).
+      // Doesn't `break` after one hit: at high speed a single substep can
+      // overlap more than one brick, and fireball should burn all of them,
+      // not just the first found.
+      for (const brick of this.bricks) {
+        if (!brick.alive || brick.type === "indestructible") continue;
+        const rect = { x: brick.x, y: brick.y, width: brick.width, height: brick.height };
+        const hit = circleRectCollision({ ...this.ballPos, radius: BALL_RADIUS }, rect);
+        if (!hit) continue;
+
+        this.msSinceProgress = 0;
+        this.handleBrickHit(brick, hit.contact.x - brick.x, hit.contact.y - brick.y, 0, true);
+      }
+      return false;
+    }
+
     for (const brick of this.bricks) {
       if (!brick.alive) continue;
       const rect = { x: brick.x, y: brick.y, width: brick.width, height: brick.height };
@@ -553,17 +572,21 @@ export class GameEngine {
     localContactX: number,
     localContactY: number,
     explosionDepth = 0,
+    isFireballHit = false,
   ): void {
     if (brick.type === "indestructible") {
       playIndestructibleSpark(this.effectsLayer, brick.x + localContactX, brick.y + localContactY);
       return;
     }
 
-    // A chain-reaction hit forces a full break (matches an explosion's real
-    // blast) instead of going through the ball's incremental hit-point
-    // model; direct hits still decrement normally.
+    // A chain-reaction hit (explosion) or a fireball pass both force a full
+    // break in one hit, matching "burns/blasts through everything" instead
+    // of the ball's incremental hit-point model; direct hits still
+    // decrement normally. Fireball additionally skips the rally-speed bump
+    // and velocity rescale — it flies straight through at a constant speed,
+    // not accelerating brick by brick like a normal rally.
     const isChainHit = explosionDepth > 0;
-    if (isChainHit) {
+    if (isChainHit || isFireballHit) {
       brick.hitsRemaining = 0;
     } else {
       this.currentSpeed = accelerateOnRally(this.currentSpeed, this.baseSpeed);
@@ -866,6 +889,9 @@ export class GameEngine {
       case "wall":
         this.stopBottomWall = startBottomWall(this.world, ARENA_WIDTH, ARENA_HEIGHT);
         break;
+      case "fireball":
+        setBallFireball(this.ball, BALL_RADIUS, true);
+        break;
       case "catch":
       case "laser":
       case "magnet":
@@ -882,6 +908,9 @@ export class GameEngine {
     this.slowActive = false;
     this.stopBottomWall?.();
     this.stopBottomWall = null;
+    if (this.activePowerUp === "fireball") {
+      setBallFireball(this.ball, BALL_RADIUS, false);
+    }
     if (this.ballStuckToPaddle) {
       this.releaseStuckBall();
     }
