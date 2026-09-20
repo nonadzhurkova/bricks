@@ -113,6 +113,8 @@ export class GameEngine {
   private baseSpeed = BASE_SPEED;
   private currentSpeed = BASE_SPEED;
   private slowActive = false;
+  /** Last speedMultiplier passed to loadLevel — reapplied by resetLevel (retry-after-game-over) so a level restart doesn't silently drop the fail-count speed-assist. */
+  private currentSpeedMultiplier = 1;
 
   private activePowerUp: PowerUpType | null = null;
   private powerUpElapsedMs = 0;
@@ -158,11 +160,16 @@ export class GameEngine {
    * Loads a level's bricks. Pass `savedBricks` (e.g. from a localStorage
    * resume snapshot) to restore an exact in-progress brick state instead of
    * generating a fresh one; in that case entrance/stagger animation is
-   * skipped since this isn't a "new level" moment.
+   * skipped since this isn't a "new level" moment. `speedMultiplier`
+   * (default 1) applies on top of the normal per-level base speed — used
+   * by the fail-count speed-assist (see store.ts's
+   * LEVEL_FAIL_SPEED_ASSIST_THRESHOLD) to ease a level that's repeatedly
+   * too hard, without touching the per-level curve itself.
    */
-  loadLevel(level: LevelDef, levelNumber: number, savedBricks?: Brick[]): void {
+  loadLevel(level: LevelDef, levelNumber: number, savedBricks?: Brick[], speedMultiplier = 1): void {
     this.level = level;
-    this.baseSpeed = endlessBaseSpeed(levelNumber, BASE_SPEED, SPEED_PER_LEVEL_INCREASE);
+    this.currentSpeedMultiplier = speedMultiplier;
+    this.baseSpeed = endlessBaseSpeed(levelNumber, BASE_SPEED, SPEED_PER_LEVEL_INCREASE) * speedMultiplier;
     this.currentSpeed = this.baseSpeed;
 
     this.brickLayer.removeChildren();
@@ -254,11 +261,19 @@ export class GameEngine {
     this.syncAttachedBallPosition();
   }
 
-  /** Rebuilds bricks from the current level (3rd life lost -> restart level). */
-  resetLevel(): void {
+  /**
+   * Rebuilds bricks from the current level (3rd life lost -> retry).
+   * `speedMultiplier`, if passed, overrides the multiplier used by the
+   * level's last loadLevel call — the caller passes a freshly-computed one
+   * here specifically because *this* retry may be the one that just
+   * crossed the fail-count speed-assist threshold, so reusing the stale
+   * multiplier from before this failure would delay the assist by one
+   * extra attempt.
+   */
+  resetLevel(speedMultiplier?: number): void {
     if (this.level) {
       const levelNum = this.level.id;
-      this.loadLevel(this.level, levelNum);
+      this.loadLevel(this.level, levelNum, undefined, speedMultiplier ?? this.currentSpeedMultiplier);
     }
   }
 

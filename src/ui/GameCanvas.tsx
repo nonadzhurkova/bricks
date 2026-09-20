@@ -5,10 +5,19 @@ import { createPixiApp } from "@/render/pixiApp";
 import { GameEngine } from "@/render/engine";
 import { getLevelDef } from "@/game/levels";
 import { ARENA_HEIGHT, ARENA_WIDTH } from "@/game/constants";
-import { useGameStore } from "@/state/store";
+import {
+  LEVEL_FAIL_SPEED_ASSIST_REDUCTION,
+  LEVEL_FAIL_SPEED_ASSIST_THRESHOLD,
+  useGameStore,
+} from "@/state/store";
 import TimerBar from "./TimerBar";
 import { bricksFromSaved, type Brick } from "@/game/brickGrid";
 import { clearResumeSnapshot, getResumeSnapshot, saveResumeSnapshot } from "@/state/storage";
+
+/** 1 (no change) below the fail-count speed-assist threshold, else the reduced multiplier. */
+function speedAssistMultiplier(failsOnCurrentLevel: number): number {
+  return failsOnCurrentLevel >= LEVEL_FAIL_SPEED_ASSIST_THRESHOLD ? 1 - LEVEL_FAIL_SPEED_ASSIST_REDUCTION : 1;
+}
 
 function saveSnapshotIfLive(engine: GameEngine): void {
   const s = useGameStore.getState();
@@ -86,7 +95,8 @@ export default function GameCanvas() {
       const savedBricks =
         snapshot && snapshot.level === currentLevelNum ? bricksFromSaved(snapshot.bricks) : undefined;
 
-      engine.loadLevel(currentLevel, currentLevelNum, savedBricks);
+      const multiplier = speedAssistMultiplier(useGameStore.getState().failsOnCurrentLevel);
+      engine.loadLevel(currentLevel, currentLevelNum, savedBricks, multiplier);
       prevLevelRef.current = currentLevelNum;
       engine.start();
     })();
@@ -105,7 +115,8 @@ export default function GameCanvas() {
     if (!engine) return;
     const levelDef = getLevelDef(level);
     if (prevLevelRef.current !== level && (phase === "playing")) {
-      engine.loadLevel(levelDef, level);
+      const multiplier = speedAssistMultiplier(useGameStore.getState().failsOnCurrentLevel);
+      engine.loadLevel(levelDef, level, undefined, multiplier);
       prevLevelRef.current = level;
     }
   }, [level, phase]);
@@ -132,7 +143,8 @@ export default function GameCanvas() {
     const engine = engineRef.current;
     if (!engine) return;
     if (prevPhaseRef.current === "gameOver" && phase === "playing") {
-      engine.resetLevel();
+      const multiplier = speedAssistMultiplier(useGameStore.getState().failsOnCurrentLevel);
+      engine.resetLevel(multiplier);
       prevLivesRef.current = 3;
     }
     if (prevPhaseRef.current !== "gameOver" && phase === "gameOver") {

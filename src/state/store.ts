@@ -3,11 +3,13 @@ import {
   getBestLevelReached,
   getBestScore,
   getHighestLevelPassed,
+  getLevelFails,
   getResumeSnapshot,
   resetHighestLevelPassed,
   setBestLevelReached,
   setBestScore,
   setHighestLevelPassed,
+  setLevelFails,
 } from "./storage";
 import type { PowerUpType } from "@/game/powerups";
 
@@ -31,6 +33,8 @@ interface GameState {
   highestLevelPassed: number;
   /** All-time record level reached this session; never reset, shown alongside best score. */
   bestLevelReached: number;
+  /** Full game-overs suffered on the *current* level number, this run. Drives an accessibility speed-assist (see LEVEL_FAIL_SPEED_ASSIST_THRESHOLD) so a level that's repeatedly too hard eases up rather than staying a permanent wall. Resets to 0 whenever the level number changes (nextLevel/restartFromLevelOne/hydrate). */
+  failsOnCurrentLevel: number;
 
   startGame: () => void;
   restartFromLevelOne: () => void;
@@ -53,6 +57,11 @@ interface GameState {
 export const LIVES_PER_LEVEL = 3;
 export const TOTAL_LEVELS = 8;
 
+/** Full game-overs on the same level, this run, before the speed-assist kicks in. */
+export const LEVEL_FAIL_SPEED_ASSIST_THRESHOLD = 10;
+/** Flat fraction ball speed is reduced by once the threshold is hit, until that level is passed. */
+export const LEVEL_FAIL_SPEED_ASSIST_REDUCTION = 0.2;
+
 export const useGameStore = create<GameState>((set, get) => ({
   // Always starts from safe, SSR-identical defaults — anything read from
   // localStorage (best score, level progress, an in-progress resume) is
@@ -67,16 +76,21 @@ export const useGameStore = create<GameState>((set, get) => ({
   powerUpTimeRatio: 0,
   highestLevelPassed: 0,
   bestLevelReached: 0,
+  failsOnCurrentLevel: 0,
 
   startGame: () =>
-    set((s) => ({
-      phase: "playing",
-      level: s.highestLevelPassed + 1,
-      score: 0,
-      lives: LIVES_PER_LEVEL,
-      activePowerUp: null,
-      powerUpTimeRatio: 0,
-    })),
+    set((s) => {
+      const level = s.highestLevelPassed + 1;
+      return {
+        phase: "playing",
+        level,
+        score: 0,
+        lives: LIVES_PER_LEVEL,
+        activePowerUp: null,
+        powerUpTimeRatio: 0,
+        failsOnCurrentLevel: getLevelFails(level),
+      };
+    }),
 
   /** Full reset: forgets saved progress and begins again at level 1 (win screen's "restart from level 1"). */
   restartFromLevelOne: () => {
@@ -89,6 +103,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       activePowerUp: null,
       powerUpTimeRatio: 0,
       highestLevelPassed: 0,
+      failsOnCurrentLevel: 0,
     });
   },
 
@@ -119,7 +134,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   loseLife: () => {
     const lives = get().lives - 1;
     if (lives <= 0) {
-      set({ lives: 0, phase: "gameOver" });
+      const level = get().level;
+      const failsOnCurrentLevel = get().failsOnCurrentLevel + 1;
+      setLevelFails(level, failsOnCurrentLevel);
+      set({ lives: 0, phase: "gameOver", failsOnCurrentLevel });
     } else {
       set({ lives });
     }
@@ -145,6 +163,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         powerUpTimeRatio: 0,
         highestLevelPassed,
         bestLevelReached,
+        failsOnCurrentLevel: 0,
       };
     }),
 
@@ -161,7 +180,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       highestLevelPassed: getHighestLevelPassed(),
       bestLevelReached: getBestLevelReached(),
       ...(resume
-        ? { phase: "playing", level: resume.level, score: resume.score, lives: resume.lives }
+        ? {
+            phase: "playing",
+            level: resume.level,
+            score: resume.score,
+            lives: resume.lives,
+            failsOnCurrentLevel: getLevelFails(resume.level),
+          }
         : {}),
     });
   },

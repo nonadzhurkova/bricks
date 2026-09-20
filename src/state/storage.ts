@@ -4,6 +4,7 @@ const BEST_SCORE_KEY = "crystal-break:best-score";
 const RESUME_KEY = "crystal-break:resume";
 const HIGHEST_LEVEL_KEY = "crystal-break:highest-level-passed";
 const BEST_LEVEL_KEY = "crystal-break:best-level-reached";
+const LEVEL_FAILS_KEY = "crystal-break:level-fails";
 
 export interface ResumeSnapshot {
   level: number;
@@ -127,5 +128,34 @@ export function setBestLevelReached(level: number): void {
     }
   } catch {
     // localStorage unavailable — record just won't persist
+  }
+}
+
+/**
+ * Full game-over count for a specific level number (the speed-assist fail
+ * counter). Stored as {level, count} rather than just a bare number so a
+ * reload doesn't mistakenly carry a stale count over to a *different*
+ * level — getLevelFails only returns non-zero when the stored level
+ * matches the one asked about.
+ */
+export function getLevelFails(level: number): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = window.localStorage.getItem(LEVEL_FAILS_KEY);
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw) as { level: number; count: number };
+    if (parsed.level !== level || typeof parsed.count !== "number") return 0;
+    return parsed.count;
+  } catch {
+    return 0;
+  }
+}
+
+export function setLevelFails(level: number, count: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LEVEL_FAILS_KEY, JSON.stringify({ level, count }));
+  } catch {
+    // localStorage unavailable — the speed-assist just won't survive a reload
   }
 }
