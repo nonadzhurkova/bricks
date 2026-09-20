@@ -570,25 +570,27 @@ export class GameEngine {
   }
 
   /**
-   * Expanding shockwave from an exploding brick: any non-indestructible
-   * brick within radius is chained via `handleBrickHit` (so it gets a full
-   * break — including its own break animation, and its own shockwave if
-   * it's also explosive) after a delay proportional to its distance from
-   * the blast center. Indestructible bricks in range spark instead of
-   * breaking. `depth` caps chained explosions from re-triggering forever.
+   * Shockwave from an exploding brick: only its immediate 3x3 grid
+   * neighbors (up/down/left/right/diagonal — at most 8 bricks) are chained
+   * via `handleBrickHit` (so each gets a full break — including its own
+   * break animation, and its own shockwave if it's also explosive) after a
+   * delay proportional to its distance from the blast center. Indestructible
+   * neighbors spark instead of breaking. `depth` caps chained explosions
+   * from re-triggering forever. The visual ring is still sized off the
+   * brick's own dimensions purely for the animation, not the hit-test.
    */
   private triggerExplosion(sourceBrick: Brick, depth = 1): void {
     const centerX = sourceBrick.x + sourceBrick.width / 2;
     const centerY = sourceBrick.y + sourceBrick.height / 2;
-    const shockwaveRadius = sourceBrick.width * 3;
 
-    playShockwaveRing(this.effectsLayer, centerX, centerY, shockwaveRadius);
+    playShockwaveRing(this.effectsLayer, centerX, centerY, sourceBrick.width * 1.5);
 
     const touching = this.bricks.filter(
       (b) =>
         b.alive &&
         b.id !== sourceBrick.id &&
-        Math.hypot(b.x + b.width / 2 - centerX, b.y + b.height / 2 - centerY) <= shockwaveRadius,
+        Math.abs(b.col - sourceBrick.col) <= 1 &&
+        Math.abs(b.row - sourceBrick.row) <= 1,
     );
 
     chainExplosiveHits(centerX, centerY, touching, (brick) => {

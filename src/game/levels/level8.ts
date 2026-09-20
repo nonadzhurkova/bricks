@@ -7,7 +7,7 @@ const level8: LevelDef = {
     "........",
     "RRRRRRRR",
     "NNN..NNN",
-    "NRNEENRN",
+    "ERNNNNRE",
     "NNN..NNN",
     "NRRRRRRN",
     "NNNNNNNN",

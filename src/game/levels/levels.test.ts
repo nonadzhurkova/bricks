@@ -42,4 +42,28 @@ describe("level grids", () => {
       expect(level.grid.join("").includes("E")).toBe(true);
     }
   });
+
+  it("no level places two explosive bricks adjacent (including diagonally)", () => {
+    levels.forEach((level) => {
+      const grid = level.grid.map((row) => [...row]);
+      const positions: [number, number][] = [];
+      grid.forEach((row, r) => row.forEach((ch, c) => ch === "E" && positions.push([r, c])));
+
+      for (let i = 0; i < positions.length; i++) {
+        for (let j = i + 1; j < positions.length; j++) {
+          const [r1, c1] = positions[i];
+          const [r2, c2] = positions[j];
+          const isAdjacent = Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1;
+          expect(isAdjacent).toBe(false);
+        }
+      }
+    });
+  });
+
+  it("no level exceeds a small fixed explosive brick count", () => {
+    levels.forEach((level) => {
+      const explosiveCount = [...level.grid.join("")].filter((c) => c === "E").length;
+      expect(explosiveCount).toBeLessThanOrEqual(4);
+    });
+  });
 });

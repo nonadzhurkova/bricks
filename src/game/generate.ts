@@ -53,22 +53,92 @@ function densityForLevel(level: number): number {
  * unlike density, toughness has no natural grid-size ceiling, so it's one
  * of the two axes (with speed) that keeps endless mode getting harder well
  * past the point brick density maxes out.
+ *
+ * Covers the main placement pass only — normal/reinforced/indestructible.
+ * Explosive is deliberately NOT part of this roll: it's placed afterward by
+ * placeExplosiveBricks as a small fixed-count pass (see
+ * EXPLOSIVE_BRICK_CAP), not scaled with density/level like the other types,
+ * so endless mode's growing brick count never proportionally increases how
+ * many explosive bricks appear.
  */
-function brickWeightsForLevel(level: number): { normal: number; reinforced: number; indestructible: number; explosive: number } {
+function brickWeightsForLevel(level: number): { normal: number; reinforced: number; indestructible: number } {
   const t = 1 - Math.exp(-(level - 9) / 60); // approaches 1 asymptotically, never fully plateaus
 
   return {
-    normal: Math.max(0.5 - t * 0.35, 0.15),
+    normal: Math.max(0.65 - t * 0.35, 0.3),
     reinforced: 0.25 + t * 0.2,
     // indestructible is intentionally capped low — it's a hazard/maze accent,
     // never allowed to dominate the mix (see MAX_INDESTRUCTIBLE_RATIO below)
     indestructible: 0.1 + t * 0.1,
-    explosive: 0.1 + t * 0.15,
   };
 }
 
 /** Hard ceiling on indestructible share of the *placed* bricks, independent of the weight roll above. */
 const MAX_INDESTRUCTIBLE_RATIO = 0.22;
+
+/**
+ * Fixed cap on explosive bricks per level, regardless of level number or
+ * total brick count — explosion radius is a 3x3 grid-neighbor blast (see
+ * GameEngine.triggerExplosion), so a handful is already a significant
+ * board-clearing tool; scaling this with endless mode's growing density
+ * would make high levels degenerate into chain-explosion spam.
+ */
+const EXPLOSIVE_BRICK_CAP = 4;
+
+/** Retries allowed when placeExplosiveBricks can't find a spacing-legal cell for the next explosive brick. */
+const EXPLOSIVE_PLACEMENT_ATTEMPTS = 10;
+
+/** True if (row, col) is one of the 8 immediate grid neighbors of (r2, c2), or the same cell. */
+function isAdjacentOrSame(row: number, col: number, r2: number, c2: number): boolean {
+  return Math.abs(row - r2) <= 1 && Math.abs(col - c2) <= 1;
+}
+
+/**
+ * Final pass: converts up to EXPLOSIVE_BRICK_CAP already-placed breakable
+ * cells (normal/reinforced) to explosive, enforcing that no two explosive
+ * bricks are ever adjacent (including diagonally) so one hit can't chain
+ * into a second explosion by placement chance alone. Mutates `grid` in
+ * place. Each placement attempt picks a random breakable cell and retries
+ * up to EXPLOSIVE_PLACEMENT_ATTEMPTS times if it violates spacing against
+ * already-placed explosive bricks; if attempts run out, fewer than the cap
+ * are placed rather than looping indefinitely.
+ */
+function placeExplosiveBricks(grid: Cell[][], rng: () => number): void {
+  const candidates: [number, number][] = [];
+  for (let row = 0; row < grid.length; row++) {
+    for (let col = 0; col < grid[row].length; col++) {
+      if (grid[row][col] === "N" || grid[row][col] === "R") {
+        candidates.push([row, col]);
+      }
+    }
+  }
+
+  const placed: [number, number][] = [];
+
+  for (let i = 0; i < EXPLOSIVE_BRICK_CAP && candidates.length > 0; i++) {
+    let attempt = 0;
+    let placedThisRound = false;
+
+    while (attempt < EXPLOSIVE_PLACEMENT_ATTEMPTS && candidates.length > 0) {
+      const idx = Math.floor(rng() * candidates.length);
+      const [row, col] = candidates[idx];
+
+      const tooClose = placed.some(([pr, pc]) => isAdjacentOrSame(row, col, pr, pc));
+      if (tooClose) {
+        attempt++;
+        continue;
+      }
+
+      grid[row][col] = "E";
+      placed.push([row, col]);
+      candidates.splice(idx, 1);
+      placedThisRound = true;
+      break;
+    }
+
+    if (!placedThisRound) break; // couldn't satisfy spacing within the attempt budget — stop, place fewer than the cap
+  }
+}
 
 /**
  * Ball base speed for endless levels: matches the same per-level increase
@@ -131,7 +201,7 @@ function buildCandidateGrid(level: number, rng: () => number): Cell[][] {
       // enforce the indestructible ceiling by re-rolling into a breakable type
       if (type === "I" && (placed === 0 || indestructiblePlaced / (placed + 1) > MAX_INDESTRUCTIBLE_RATIO)) {
         type = TYPE_TO_CHAR[
-          weightedPick(rng, { normal: weights.normal, reinforced: weights.reinforced, explosive: weights.explosive })
+          weightedPick(rng, { normal: weights.normal, reinforced: weights.reinforced })
         ];
       }
 
@@ -140,6 +210,8 @@ function buildCandidateGrid(level: number, rng: () => number): Cell[][] {
       if (type === "I") indestructiblePlaced++;
     }
   }
+
+  placeExplosiveBricks(grid, rng);
 
   return grid;
 }

@@ -102,6 +102,40 @@ describe("generateEndlessLevel", () => {
       expect(hasBrick).toBe(true);
     }
   });
+
+  it("caps explosive bricks at a small fixed count, not scaled with level/density", () => {
+    for (const level of [9, 20, 50, 100, 300, 900]) {
+      const def = generateEndlessLevel(level);
+      const explosiveCount = [...def.grid.join("")].filter((c) => c === "E").length;
+      expect(explosiveCount).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("never places two explosive bricks adjacent (including diagonally)", () => {
+    for (const level of [9, 15, 20, 30, 50, 80, 120, 200, 500]) {
+      const def = generateEndlessLevel(level);
+      const grid = def.grid.map((row) => [...row]);
+      const positions: [number, number][] = [];
+      grid.forEach((row, r) => row.forEach((ch, c) => ch === "E" && positions.push([r, c])));
+
+      for (let i = 0; i < positions.length; i++) {
+        for (let j = i + 1; j < positions.length; j++) {
+          const [r1, c1] = positions[i];
+          const [r2, c2] = positions[j];
+          const isAdjacent = Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1;
+          expect(isAdjacent).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("never places explosive bricks in the always-clear bottom rows", () => {
+    for (const level of [9, 20, 50, 100]) {
+      const def = generateEndlessLevel(level);
+      const lastTwoRows = def.grid.slice(-2).join("");
+      expect(lastTwoRows.includes("E")).toBe(false);
+    }
+  });
 });
 
 describe("isSolvable", () => {
