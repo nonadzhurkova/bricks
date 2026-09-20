@@ -76,6 +76,20 @@ function brickWeightsForLevel(level: number): { normal: number; reinforced: numb
 /** Hard ceiling on indestructible share of the *placed* bricks, independent of the weight roll above. */
 const MAX_INDESTRUCTIBLE_RATIO = 0.22;
 
+/** True if any of (row, col)'s 8 grid neighbors already placed in `grid` is indestructible. */
+function hasAdjacentIndestructible(grid: Cell[][], row: number, col: number): boolean {
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nr = row + dr;
+      const nc = col + dc;
+      if (nr < 0 || nr >= grid.length || nc < 0 || nc >= grid[0].length) continue;
+      if (grid[nr][nc] === "I") return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Fixed cap on explosive bricks per level, regardless of level number or
  * total brick count — explosion radius is a 3x3 grid-neighbor blast (see
@@ -246,8 +260,16 @@ function buildCandidateGrid(level: number, rng: () => number): Cell[][] {
 
       let type = TYPE_TO_CHAR[weightedPick(rng, weights)];
 
-      // enforce the indestructible ceiling by re-rolling into a breakable type
-      if (type === "I" && (placed === 0 || indestructiblePlaced / (placed + 1) > MAX_INDESTRUCTIBLE_RATIO)) {
+      // enforce the indestructible ceiling and no-adjacency rule by
+      // re-rolling into a breakable type — two indestructible bricks
+      // touching (including diagonally) can wall off narrow dead corridors
+      // that make a layout feel like a maze rather than "hard but fair"
+      if (
+        type === "I" &&
+        (placed === 0 ||
+          indestructiblePlaced / (placed + 1) > MAX_INDESTRUCTIBLE_RATIO ||
+          hasAdjacentIndestructible(grid, row, col))
+      ) {
         type = TYPE_TO_CHAR[
           weightedPick(rng, { normal: weights.normal, reinforced: weights.reinforced })
         ];

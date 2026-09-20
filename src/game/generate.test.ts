@@ -95,6 +95,24 @@ describe("generateEndlessLevel", () => {
     }
   });
 
+  it("never places two indestructible bricks adjacent (including diagonally) — avoids maze-like dead walls", () => {
+    for (const level of [9, 15, 20, 30, 50, 78, 81, 90, 120, 200, 500]) {
+      const def = generateEndlessLevel(level);
+      const grid = def.grid.map((row) => [...row]);
+      const positions: [number, number][] = [];
+      grid.forEach((row, r) => row.forEach((ch, c) => ch === "I" && positions.push([r, c])));
+
+      for (let i = 0; i < positions.length; i++) {
+        for (let j = i + 1; j < positions.length; j++) {
+          const [r1, c1] = positions[i];
+          const [r2, c2] = positions[j];
+          const isAdjacent = Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1;
+          expect(isAdjacent).toBe(false);
+        }
+      }
+    }
+  });
+
   it("has at least one brick at every tested level", () => {
     for (const level of [9, 10, 50, 200]) {
       const def = generateEndlessLevel(level);
