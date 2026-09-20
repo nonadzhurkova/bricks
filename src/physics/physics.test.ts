@@ -125,6 +125,19 @@ describe("speed model", () => {
   it("resets to base speed on paddle hit", () => {
     expect(resetSpeedOnPaddleHit(5)).toBe(5);
   });
+
+  it("never exceeds MAX_BALL_SPEED even when 1.6x base would (high endless-level base speed)", () => {
+    // At a high endless level, base speed can sit close to MAX_BALL_SPEED
+    // (see endlessBaseSpeed's asymptotic curve) — 1.6x that would overshoot
+    // the absolute ceiling, so accelerateOnRally must cap at whichever of
+    // the two limits is lower, not just the relative multiplier.
+    const highBase = 900; // 900 * 1.6 = 1440, well above the 950 ceiling
+    let speed = highBase;
+    for (let i = 0; i < 500; i++) {
+      speed = accelerateOnRally(speed, highBase);
+    }
+    expect(speed).toBeLessThanOrEqual(950 + 1e-9);
+  });
 });
 
 describe("rescaleVelocity", () => {

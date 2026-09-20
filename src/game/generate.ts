@@ -1,4 +1,4 @@
-import { BRICK_COLS, BRICK_ROWS } from "./constants";
+import { BRICK_COLS, BRICK_ROWS, MAX_BALL_SPEED } from "./constants";
 import type { LevelDef } from "./levels/types";
 
 /** Rows 0-1 are always left clear so a freshly-loaded level never starts with bricks touching the top wall immediately. */
@@ -50,9 +50,13 @@ function densityForLevel(level: number): number {
 /**
  * Brick-type weights shift toward tougher/hazard bricks as level rises. The
  * ramp continues (slowly) indefinitely past its initial 20-level stretch —
- * unlike density, toughness has no natural grid-size ceiling, so it's one
- * of the two axes (with speed) that keeps endless mode getting harder well
- * past the point brick density maxes out.
+ * unlike density, toughness has no natural grid-size ceiling, so with ball
+ * speed now capped and flattening out after SPEED_RAMP_LINEAR_UNTIL_LEVEL,
+ * this is the main axis carrying endless mode's difficulty at high levels.
+ * Time constant tightened from 60 to 35 levels so toughness picks up that
+ * slack around the same level range (40-60) that speed stops climbing
+ * meaningfully, instead of drifting toward its asymptote over 150-200
+ * levels while speed was still the dominant difficulty source.
  *
  * Covers the main placement pass only — normal/reinforced/indestructible.
  * Explosive is deliberately NOT part of this roll: it's placed afterward by
@@ -62,7 +66,7 @@ function densityForLevel(level: number): number {
  * many explosive bricks appear.
  */
 function brickWeightsForLevel(level: number): { normal: number; reinforced: number; indestructible: number } {
-  const t = 1 - Math.exp(-(level - 9) / 60); // approaches 1 asymptotically, never fully plateaus
+  const t = 1 - Math.exp(-(level - 9) / 35); // approaches 1 asymptotically, never fully plateaus
 
   return {
     normal: Math.max(0.65 - t * 0.35, 0.3),
@@ -202,20 +206,43 @@ function placeRegeneratingBricks(grid: Cell[][], rng: () => number): void {
 }
 
 /**
- * Ball base speed for endless levels: matches the same per-level increase
- * used by the hand-built levels through level 8, then keeps climbing at a
- * slower, purely logarithmic rate — meaningfully faster at level 900 than
- * level 90, but without the runaway growth of staying linear forever.
- * Applied in the render engine via GameEngine's speed calc.
+ * Level past which base speed stops scaling linearly and starts decaying
+ * asymptotically toward MAX_BALL_SPEED instead. Chosen so the familiar
+ * linear ramp (used by the 8 hand-built levels too) continues a bit further
+ * into endless mode before the curve bends — level 20-30 is where
+ * playtesting still felt tracked/reactable.
+ */
+const SPEED_RAMP_LINEAR_UNTIL_LEVEL = 30;
+
+/** Levels-to-63%-of-remaining-headroom time constant for the post-ramp decay curve — smaller = reaches the cap sooner. */
+const SPEED_RAMP_DECAY_LEVELS = 30;
+
+/**
+ * Ball base speed for endless levels: linear (same per-level increase as
+ * the 8 hand-built levels) through SPEED_RAMP_LINEAR_UNTIL_LEVEL, then an
+ * exponential-decay curve that approaches MAX_BALL_SPEED asymptotically —
+ * quick early growth, increasingly diminishing returns, and a real ceiling
+ * it can get arbitrarily close to but never reach or exceed (so it never
+ * needs a separate min() cap — the asymptote IS the cap). Replaces an
+ * earlier version that used slow log growth past level 8, which still grew
+ * unboundedly (just slowly) and made very high levels (e.g. 100+)
+ * unplayably fast. Applied in the render engine via GameEngine's speed
+ * calc; the in-level rally acceleration on top of this is separately
+ * capped at the same MAX_BALL_SPEED (see physics/speed.ts).
  */
 export function endlessBaseSpeed(level: number, baseSpeed: number, perLevelIncrease: number): number {
-  if (level <= 8) return baseSpeed + (level - 1) * perLevelIncrease;
+  if (level <= SPEED_RAMP_LINEAR_UNTIL_LEVEL) {
+    return baseSpeed + (level - 1) * perLevelIncrease;
+  }
 
-  const speedAtEight = baseSpeed + 7 * perLevelIncrease;
-  const levelsIntoEndless = level - 8;
-  // slow log growth: roughly +perLevelIncrease for the first level past 8,
-  // tapering off so it never becomes literally unplayable at very high levels
-  return speedAtEight + perLevelIncrease * Math.log2(levelsIntoEndless + 1) * 4;
+  const speedAtRampStart = baseSpeed + (SPEED_RAMP_LINEAR_UNTIL_LEVEL - 1) * perLevelIncrease;
+  const remainingHeadroom = MAX_BALL_SPEED - speedAtRampStart;
+  const levelsPastRamp = level - SPEED_RAMP_LINEAR_UNTIL_LEVEL;
+
+  return (
+    speedAtRampStart +
+    remainingHeadroom * (1 - Math.exp(-levelsPastRamp / SPEED_RAMP_DECAY_LEVELS))
+  );
 }
 
 // ---- generation ----------------------------------------------------------

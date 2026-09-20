@@ -14,6 +14,7 @@ import {
   LASER_HEIGHT,
   LASER_SPEED,
   LASER_WIDTH,
+  MAX_BALL_SPEED,
   PADDLE_HEIGHT,
   PADDLE_SPEED_KEYBOARD,
   PADDLE_WIDTH,
@@ -995,7 +996,7 @@ export class GameEngine {
     this.paddle.container.x = this.paddleX;
     this.ball.container.x = this.ballPos.x;
     this.ball.container.y = this.ballPos.y;
-    const speedRatio = Math.min(this.currentSpeed / (this.baseSpeed * SPEED_CAP_MULTIPLIER), 1);
+    const speedRatio = Math.min(this.currentSpeed / Math.min(this.baseSpeed * SPEED_CAP_MULTIPLIER, MAX_BALL_SPEED), 1);
     updateBallTrail(this.ball, this.ballPos.x, this.ballPos.y, speedRatio);
   }
 }

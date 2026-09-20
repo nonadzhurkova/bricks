@@ -221,29 +221,46 @@ describe("isSolvable", () => {
 describe("endlessBaseSpeed", () => {
   const base = 260;
   const perLevel = 14;
+  const MAX_BALL_SPEED = 950;
 
-  it("matches the plain linear model through level 8", () => {
-    for (const level of [1, 4, 8]) {
+  it("matches the plain linear model through level 8 (and up through the linear ramp's end)", () => {
+    for (const level of [1, 4, 8, 20, 30]) {
       expect(endlessBaseSpeed(level, base, perLevel)).toBeCloseTo(base + (level - 1) * perLevel);
     }
   });
 
-  it("keeps climbing indefinitely past level 8, never capping", () => {
-    const speeds = [9, 50, 200, 900, 5000].map((level) => endlessBaseSpeed(level, base, perLevel));
-    for (let i = 1; i < speeds.length; i++) {
-      expect(speeds[i]).toBeGreaterThan(speeds[i - 1]);
+  it("never exceeds the absolute MAX_BALL_SPEED ceiling at any tested level", () => {
+    for (const level of [1, 30, 31, 40, 60, 100, 200, 500, 900, 5000, 50000]) {
+      expect(endlessBaseSpeed(level, base, perLevel)).toBeLessThanOrEqual(MAX_BALL_SPEED);
     }
   });
 
-  it("level 900 is meaningfully faster than level 90 (no plateau)", () => {
-    const at90 = endlessBaseSpeed(90, base, perLevel);
-    const at900 = endlessBaseSpeed(900, base, perLevel);
-    expect(at900).toBeGreaterThan(at90 * 1.05);
+  it("keeps rising (never decreases) as level increases, staying strictly below the ceiling until it's effectively reached", () => {
+    const speeds = [9, 30, 50, 100, 200, 500, 900].map((level) => endlessBaseSpeed(level, base, perLevel));
+    for (let i = 1; i < speeds.length; i++) {
+      expect(speeds[i]).toBeGreaterThanOrEqual(speeds[i - 1]);
+    }
   });
 
-  it("growth rate slows down at higher levels (logarithmic, not linear forever)", () => {
-    const delta10to20 = endlessBaseSpeed(20, base, perLevel) - endlessBaseSpeed(10, base, perLevel);
+  it("gets very close to the ceiling by level 500 and stays there at much higher levels (asymptotic, not still climbing meaningfully)", () => {
+    const at500 = endlessBaseSpeed(500, base, perLevel);
+    const at5000 = endlessBaseSpeed(5000, base, perLevel);
+    expect(at500).toBeGreaterThan(MAX_BALL_SPEED - 5);
+    expect(at5000).toBeGreaterThan(MAX_BALL_SPEED - 1);
+  });
+
+  it("growth rate slows down sharply after the linear ramp ends (diminishing returns, not linear forever)", () => {
+    const delta20to30 = endlessBaseSpeed(30, base, perLevel) - endlessBaseSpeed(20, base, perLevel);
     const delta910to920 = endlessBaseSpeed(920, base, perLevel) - endlessBaseSpeed(910, base, perLevel);
-    expect(delta910to920).toBeLessThan(delta10to20);
+    expect(delta910to920).toBeLessThan(delta20to30);
+  });
+
+  it("level 100 stays clearly playable relative to level 20-30 (the old bug: level 100 was far faster with no ceiling)", () => {
+    const at20 = endlessBaseSpeed(20, base, perLevel);
+    const at100 = endlessBaseSpeed(100, base, perLevel);
+    // level 100 is still faster than level 20 (difficulty keeps rising) but
+    // by a bounded, reasonable margin rather than compounding indefinitely
+    expect(at100).toBeGreaterThan(at20);
+    expect(at100).toBeLessThan(at20 * 1.8);
   });
 });

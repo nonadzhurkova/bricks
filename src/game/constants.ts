@@ -22,6 +22,16 @@ export const LIVES_PER_LEVEL = 3;
 export const BASE_SPEED = 260; // px/sec at level 1
 export const SPEED_PER_LEVEL_INCREASE = 14; // px/sec added per level
 
+/**
+ * Absolute ceiling on ball speed, in px/sec — applies to BOTH the per-level
+ * base speed (see endlessBaseSpeed in game/generate.ts) and the in-level
+ * rally acceleration (see SPEED_CAP_MULTIPLIER in physics/speed.ts). No
+ * combination of level number and rally length can ever push the ball
+ * faster than this. Chosen from playtesting around level 20-30, where the
+ * game still feels tracked/reactable at the top of the old linear curve.
+ */
+export const MAX_BALL_SPEED = 950; // px/sec
+
 export const POWERUP_DROP_CHANCE = 0.18; // 15-20%
 export const POWERUP_FALL_SPEED = 160; // px/sec
 
