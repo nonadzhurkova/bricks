@@ -2,19 +2,38 @@
 
 import { useGameStore } from "@/state/store";
 import { ARENA_HEIGHT, PADDLE_Y_OFFSET } from "@/game/constants";
+import { POWERUPS } from "@/game/powerups";
 
-/** Thin timer bar shown above the paddle for the active timed power-up. */
+/** Stack of thin timer bars above the paddle, one per currently-active power-up — multiple can be active at once. untilLevelEnd effects (granted by Diamond) show a full, static bar since they have no countdown. */
 export default function TimerBar() {
-  const activePowerUp = useGameStore((s) => s.activePowerUp);
-  const ratio = useGameStore((s) => s.powerUpTimeRatio);
+  const effects = useGameStore((s) => s.activeEffects);
 
-  if (!activePowerUp || activePowerUp === "extraLife") return null;
+  if (effects.length === 0) return null;
 
-  const topPercent = ((ARENA_HEIGHT - PADDLE_Y_OFFSET - 14) / ARENA_HEIGHT) * 100;
+  const bottomPercent = ((ARENA_HEIGHT - PADDLE_Y_OFFSET - 14) / ARENA_HEIGHT) * 100;
+  const barSpacing = 6; // px between stacked bars
 
   return (
-    <div className="timer-bar-track" style={{ top: `${topPercent}%` }}>
-      <div className="timer-bar-fill" style={{ width: `${Math.max(0, ratio) * 100}%` }} />
-    </div>
+    <>
+      {effects.map((effect, i) => {
+        const color = POWERUPS[effect.type].color;
+        const hex = `#${color.toString(16).padStart(6, "0")}`;
+        return (
+          <div
+            key={effect.type}
+            className="timer-bar-track"
+            style={{ top: `calc(${bottomPercent}% - ${i * barSpacing}px)` }}
+          >
+            <div
+              className="timer-bar-fill"
+              style={{
+                width: `${Math.max(0, effect.ratio) * 100}%`,
+                background: hex,
+              }}
+            />
+          </div>
+        );
+      })}
+    </>
   );
 }

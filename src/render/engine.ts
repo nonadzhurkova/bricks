@@ -47,17 +47,33 @@ import { startBottomWall } from "./animations/bottomWall";
 import { playPowerUpToast, playLifeLostToast } from "./animations/powerupToast";
 import { endlessBaseSpeed } from "@/game/generate";
 
+/** One entry per currently-active timed power-up, reported to the host for HUD display. ratio is 1 (just activated/refreshed) down to 0 (about to expire); untilLevelEnd effects (granted by Diamond) stay at a fixed ratio and are only cleared by the next loadLevel, not a countdown. */
+export interface ActiveEffectInfo {
+  type: PowerUpType;
+  ratio: number;
+  untilLevelEnd: boolean;
+}
+
 export interface EngineCallbacks {
   onScore: (points: number) => void;
   onLifeLost: () => void;
   onLevelClear: () => void;
   onPowerUpCaught?: (type: PowerUpType) => void;
-  onPowerUpChanged?: (type: PowerUpType | null) => void;
-  onPowerUpTimeRatio?: (ratio: number) => void;
+  /** Fired whenever the set of active timed power-ups changes (catch, expiry, level load) — reports all of them, not just one. */
+  onActiveEffectsChanged?: (effects: ActiveEffectInfo[]) => void;
   onExtraLife?: () => void;
   /** Fired whenever brick state changes (hit, break, level load) so the host can persist a resume snapshot. */
   onBricksChanged?: (bricks: Brick[]) => void;
 }
+
+/** Power-ups that can never be simultaneously active with each other — catching one clears the other(s) in its group first. */
+const EXCLUSION_GROUPS: PowerUpType[][] = [
+  ["enlarge", "reduce"],
+  ["catch", "magnet"],
+];
+
+/** Recatching an already-active power-up adds its full duration to the remaining time instead of just resetting to full, capped at this multiple of the base duration so it can't be chained indefinitely. */
+const STACK_CAP_MULTIPLIER = 2;
 
 interface FallingCapsule {
   type: PowerUpType;
@@ -112,15 +128,24 @@ export class GameEngine {
 
   private baseSpeed = BASE_SPEED;
   private currentSpeed = BASE_SPEED;
-  private slowActive = false;
   /** Last speedMultiplier passed to loadLevel — reapplied by resetLevel (retry-after-game-over) so a level restart doesn't silently drop the fail-count speed-assist. */
   private currentSpeedMultiplier = 1;
 
-  private activePowerUp: PowerUpType | null = null;
-  private powerUpElapsedMs = 0;
-  private powerUpDurationMs = 0;
-  private stopSlowRipple: (() => void) | null = null;
-  private stopBottomWall: (() => void) | null = null;
+  /**
+   * Every currently-active timed power-up, keyed by type — replaces the old
+   * single activePowerUp field so independent effects (e.g. Wall + Slow)
+   * can run simultaneously. `untilLevelEnd` (granted only by Diamond, which
+   * itself is never stored here — it activates "fireball" and "wall"
+   * directly) skips the countdown in updatePowerUpTimer entirely, cleared
+   * only by the next loadLevel. `stop`, if present, is called on expiry or
+   * early removal (exclusion-group conflict, level reload) — holds
+   * per-effect teardown (ripple/wall visuals, ball tint) that used to live
+   * in one shared clearPowerUp.
+   */
+  private activeEffects = new Map<
+    PowerUpType,
+    { remainingMs: number; durationMs: number; untilLevelEnd: boolean; stop?: () => void }
+  >();
   private laserCooldownMs = 0;
 
   private level: LevelDef | null = null;
@@ -181,7 +206,7 @@ export class GameEngine {
     this.laserLayer.removeChildren();
     this.lasers = [];
     this.bricks = savedBricks ?? buildBricksFromLevel(level);
-    this.clearPowerUp();
+    this.clearAllEffects();
     this.levelClearTriggered = false;
     this.elapsedMs = 0;
 
@@ -251,7 +276,7 @@ export class GameEngine {
 
   /** Resets ball to attached-on-paddle state, keeping current brick state (life lost mid-level). */
   resetBallOnPaddle(): void {
-    this.clearPowerUp();
+    this.clearAllEffects();
     this.ballLost = false;
     this.msSinceProgress = 0;
     this.ballAttached = true;
@@ -324,14 +349,14 @@ export class GameEngine {
       this.releaseStuckBall();
       return;
     }
-    if (this.activePowerUp === "laser") {
+    if (this.activeEffects.has("laser")) {
       this.fireRequested = true;
     }
   }
 
   /** Dedicated laser fire trigger (mobile fire button / desktop click), separate from launch/release. */
   fireLaser(): void {
-    if (this.activePowerUp === "laser") {
+    if (this.activeEffects.has("laser")) {
       this.fireRequested = true;
     }
   }
@@ -352,7 +377,7 @@ export class GameEngine {
 
   /** currentSpeed scaled down while Slow is active; used for all outgoing velocity magnitudes. */
   private effectiveSpeed(): number {
-    return this.slowActive ? this.currentSpeed * SLOW_SPEED_MULTIPLIER : this.currentSpeed;
+    return this.activeEffects.has("slow") ? this.currentSpeed * SLOW_SPEED_MULTIPLIER : this.currentSpeed;
   }
 
   start(): void {
@@ -458,7 +483,7 @@ export class GameEngine {
 
   /** Advances the ball by dt; returns true if the ball was lost this step. */
   private stepBall(dt: number): boolean {
-    if (this.activePowerUp === "magnet") {
+    if (this.activeEffects.has("magnet")) {
       this.applyMagnetPull(dt);
     }
 
@@ -478,9 +503,9 @@ export class GameEngine {
       this.ballVel.y = Math.abs(this.ballVel.y);
     }
 
-    // ball lost — unless Wall (or Diamond, which includes Wall's effect) is active
+    // ball lost — unless Wall (activated directly, or granted by Diamond) is active
     if (this.ballPos.y + BALL_RADIUS > ARENA_HEIGHT) {
-      if (this.activePowerUp === "wall" || this.activePowerUp === "diamond") {
+      if (this.activeEffects.has("wall")) {
         this.ballPos.y = ARENA_HEIGHT - BALL_RADIUS;
         this.ballVel.y = -Math.abs(this.ballVel.y);
       } else {
@@ -498,7 +523,7 @@ export class GameEngine {
       const contactRatio = clamp((this.ballPos.x - paddleRect.x) / paddleRect.width, 0, 1);
       playPaddleImpact(this.paddle.container, this.paddleWidth, PADDLE_HEIGHT, contactRatio);
 
-      if (this.activePowerUp === "catch") {
+      if (this.activeEffects.has("catch")) {
         this.ballStuckToPaddle = true;
         this.ballStickOffsetX = this.ballPos.x - this.paddleX;
         this.ballVel = { x: 0, y: 0 };
@@ -513,7 +538,7 @@ export class GameEngine {
     }
 
     // brick collisions
-    if (this.activePowerUp === "fireball" || this.activePowerUp === "diamond") {
+    if (this.activeEffects.has("fireball")) {
       // Passes straight through every brick in its path — no bounce, no
       // penetration push-back, no speed rescale. Indestructible bricks are
       // ignored entirely (can't be burned, so no spark/effect either).
@@ -867,102 +892,149 @@ export class GameEngine {
       return;
     }
 
-    // Catching the same power-up that's already active just refreshes its
-    // timer back to full duration, instead of tearing down and rebuilding
-    // the same visual state (ripple/wall restart) for no reason. Scoped to
-    // Slow and Wall only — Enlarge/Reduce/Catch/Laser keep the original
-    // full replace-on-catch behavior even for a same-type recatch.
-    const REFRESHABLE_TYPES: PowerUpType[] = ["slow", "wall"];
-    if (this.activePowerUp === type && REFRESHABLE_TYPES.includes(type)) {
-      this.powerUpElapsedMs = 0;
-      this.callbacks.onPowerUpTimeRatio?.(1);
+    if (type === "diamond") {
+      // Fireball + Wall combined, both granted "until level end" rather
+      // than on their own timers — activating each directly (instead of
+      // tracking "diamond" itself as a slot) means every other check in
+      // this file only ever needs to ask about fireball/wall, never a
+      // separate diamond case.
+      this.startEffect("fireball", true);
+      this.startEffect("wall", true);
+      this.callbacks.onActiveEffectsChanged?.(this.activeEffectsInfo());
       return;
     }
 
-    // catching any new power-up reverts a previous Reduce (or any other active state)
-    this.clearPowerUp();
-
-    this.activePowerUp = type;
-    this.powerUpElapsedMs = 0;
+    const existing = this.activeEffects.get(type);
     const def = POWERUPS[type];
-    this.powerUpDurationMs = def.duration ?? 0;
-    this.callbacks.onPowerUpChanged?.(type);
-    this.callbacks.onPowerUpTimeRatio?.(1);
 
-    drawPaddleBody(this.paddle.body, this.paddleWidth, PADDLE_HEIGHT, type);
+    // fireball/wall granted by Diamond outrank a plain timed catch of the
+    // same type — catching a normal Fireball/Wall capsule while Diamond's
+    // permanent version is running must not downgrade it to a timer.
+    if (existing?.untilLevelEnd) {
+      return;
+    }
 
+    // Recatching an already-active power-up extends its remaining time by
+    // its full duration instead of just resetting to full — capped at
+    // STACK_CAP_MULTIPLIER x base duration so it can't be chained
+    // indefinitely.
+    if (existing && def.duration) {
+      const cap = def.duration * STACK_CAP_MULTIPLIER;
+      existing.remainingMs = Math.min(existing.remainingMs + def.duration, cap);
+      existing.durationMs = Math.max(existing.durationMs, existing.remainingMs);
+      this.callbacks.onActiveEffectsChanged?.(this.activeEffectsInfo());
+      return;
+    }
+
+    // Exclusion groups: catching e.g. Enlarge clears an active Reduce (and
+    // vice versa) before starting the new one, since the two are logically
+    // contradictory rather than independent.
+    for (const group of EXCLUSION_GROUPS) {
+      if (!group.includes(type)) continue;
+      for (const other of group) {
+        if (other !== type) this.stopEffect(other);
+      }
+    }
+
+    this.startEffect(type, false);
+    this.callbacks.onActiveEffectsChanged?.(this.activeEffectsInfo());
+  }
+
+  /** Activates one power-up's own gameplay/visual side effect and registers it in activeEffects. untilLevelEnd effects (granted by Diamond) never count down and are only cleared by the next loadLevel. */
+  private startEffect(type: PowerUpType, untilLevelEnd: boolean): void {
+    const def = POWERUPS[type];
+    const durationMs = untilLevelEnd ? 0 : (def.duration ?? 0);
+
+    let stop: (() => void) | undefined;
     switch (type) {
       case "enlarge":
         this.setPaddleWidth(this.basePaddleWidth * ENLARGE_WIDTH_MULTIPLIER);
+        stop = () => this.setPaddleWidth(this.basePaddleWidth);
         break;
       case "reduce":
         this.setPaddleWidth(this.basePaddleWidth * REDUCE_WIDTH_MULTIPLIER);
+        stop = () => this.setPaddleWidth(this.basePaddleWidth);
         break;
-      case "slow":
-        this.slowActive = true;
-        this.stopSlowRipple = startSlowRipple(this.paddle.container, this.paddleWidth, PADDLE_HEIGHT);
+      case "slow": {
+        const stopRipple = startSlowRipple(this.paddle.container, this.paddleWidth, PADDLE_HEIGHT);
+        stop = stopRipple;
         break;
-      case "wall":
-        this.stopBottomWall = startBottomWall(this.world, ARENA_WIDTH, ARENA_HEIGHT);
+      }
+      case "wall": {
+        const stopWall = startBottomWall(this.world, ARENA_WIDTH, ARENA_HEIGHT);
+        stop = stopWall;
         break;
+      }
       case "fireball":
         setBallFireball(this.ball, BALL_RADIUS, true);
-        break;
-      case "diamond":
-        // Fireball + Wall combined, and — unlike either alone — lasts for
-        // the rest of the current level rather than a timer (POWERUPS.diamond
-        // has no `duration`, so updatePowerUpTimer never counts it down).
-        // Rare, level-100+-only reward (see DIAMOND_MIN_LEVEL/
-        // DIAMOND_DROP_CHANCE in game/constants.ts).
-        this.stopBottomWall = startBottomWall(this.world, ARENA_WIDTH, ARENA_HEIGHT);
-        setBallFireball(this.ball, BALL_RADIUS, true);
+        stop = () => setBallFireball(this.ball, BALL_RADIUS, false);
         break;
       case "catch":
       case "laser":
       case "magnet":
         break;
     }
+
+    this.activeEffects.set(type, { remainingMs: durationMs, durationMs, untilLevelEnd, stop });
   }
 
-  /** Reverts to the normal paddle state — called on power-up expiry or when a new one is caught. */
-  private clearPowerUp(): void {
-    if (this.activePowerUp === null) return;
+  /** Reverts one power-up's own effect and removes it from activeEffects — no-op if it isn't active. Safe to call on any type, including ones with no gameplay side effect (catch/laser/magnet just get unregistered). */
+  private stopEffect(type: PowerUpType): void {
+    const effect = this.activeEffects.get(type);
+    if (!effect) return;
 
-    this.stopSlowRipple?.();
-    this.stopSlowRipple = null;
-    this.slowActive = false;
-    this.stopBottomWall?.();
-    this.stopBottomWall = null;
-    if (this.activePowerUp === "fireball" || this.activePowerUp === "diamond") {
-      setBallFireball(this.ball, BALL_RADIUS, false);
-    }
-    if (this.ballStuckToPaddle) {
+    effect.stop?.();
+    if (type === "catch" && this.ballStuckToPaddle) {
       this.releaseStuckBall();
     }
-    this.setPaddleWidth(this.basePaddleWidth);
-    drawPaddleBody(this.paddle.body, this.paddleWidth, PADDLE_HEIGHT, "normal");
+    this.activeEffects.delete(type);
+  }
 
-    this.activePowerUp = null;
-    this.powerUpElapsedMs = 0;
-    this.powerUpDurationMs = 0;
-    this.callbacks.onPowerUpChanged?.(null);
-    this.callbacks.onPowerUpTimeRatio?.(0);
+  /** Tears down every active effect — used on level load/reset, not on a normal single-power-up expiry (which goes through stopEffect directly). */
+  private clearAllEffects(): void {
+    for (const type of [...this.activeEffects.keys()]) {
+      this.stopEffect(type);
+    }
+    this.callbacks.onActiveEffectsChanged?.([]);
+  }
+
+  private activeEffectsInfo(): ActiveEffectInfo[] {
+    return [...this.activeEffects.entries()].map(([type, effect]) => ({
+      type,
+      ratio: effect.untilLevelEnd ? 1 : Math.max(0, effect.remainingMs / effect.durationMs),
+      untilLevelEnd: effect.untilLevelEnd,
+    }));
   }
 
   private setPaddleWidth(width: number): void {
     const centerX = this.paddleX + this.paddleWidth / 2;
     this.paddleWidth = width;
     this.paddleX = clamp(centerX - width / 2, 0, ARENA_WIDTH - width);
-    drawPaddleBody(this.paddle.body, this.paddleWidth, PADDLE_HEIGHT, this.activePowerUp ?? "normal");
+    // Paddle base color reflects only the shape-changing effects
+    // (enlarge/reduce) — every other active power-up shows as a HUD badge
+    // instead of fighting over the one paddle-color slot.
+    const shapeState = this.activeEffects.has("enlarge")
+      ? "enlarge"
+      : this.activeEffects.has("reduce")
+        ? "reduce"
+        : "normal";
+    drawPaddleBody(this.paddle.body, this.paddleWidth, PADDLE_HEIGHT, shapeState);
   }
 
   private updatePowerUpTimer(dt: number): void {
-    if (!this.activePowerUp || this.powerUpDurationMs <= 0) return;
-    this.powerUpElapsedMs += dt * 1000;
-    const ratio = Math.max(0, 1 - this.powerUpElapsedMs / this.powerUpDurationMs);
-    this.callbacks.onPowerUpTimeRatio?.(ratio);
-    if (ratio <= 0) {
-      this.clearPowerUp();
+    if (this.activeEffects.size === 0) return;
+
+    let changed = false;
+    for (const [type, effect] of this.activeEffects) {
+      if (effect.untilLevelEnd) continue;
+      effect.remainingMs -= dt * 1000;
+      changed = true;
+      if (effect.remainingMs <= 0) {
+        this.stopEffect(type);
+      }
+    }
+    if (changed) {
+      this.callbacks.onActiveEffectsChanged?.(this.activeEffectsInfo());
     }
   }
 
@@ -973,7 +1045,7 @@ export class GameEngine {
 
     if (this.fireRequested) {
       this.fireRequested = false;
-      if (this.activePowerUp === "laser" && this.laserCooldownMs <= 0) {
+      if (this.activeEffects.has("laser") && this.laserCooldownMs <= 0) {
         this.spawnLaserBolts();
         this.laserCooldownMs = LASER_COOLDOWN_MS;
       }

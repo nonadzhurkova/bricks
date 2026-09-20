@@ -50,7 +50,7 @@ export default function GameCanvas() {
 
   const phase = useGameStore((s) => s.phase);
   const level = useGameStore((s) => s.level);
-  const activePowerUp = useGameStore((s) => s.activePowerUp);
+  const hasLaser = useGameStore((s) => s.activeEffects.some((e) => e.type === "laser"));
 
   const prevLevelRef = useRef<number | null>(null);
 
@@ -81,8 +81,7 @@ export default function GameCanvas() {
           useGameStore.getState().levelClear();
         },
         onPowerUpCaught: () => {},
-        onPowerUpChanged: (type) => useGameStore.getState().setActivePowerUp(type),
-        onPowerUpTimeRatio: (ratio) => useGameStore.getState().setPowerUpTimeRatio(ratio),
+        onActiveEffectsChanged: (effects) => useGameStore.getState().setActiveEffects(effects),
         onExtraLife: () => useGameStore.getState().addLife(),
         onBricksChanged: () => saveSnapshotIfLive(engine!),
       });
@@ -225,7 +224,7 @@ export default function GameCanvas() {
     >
       <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
       <TimerBar />
-      {activePowerUp === "laser" && (
+      {hasLaser && (
         <button
           className="fire-btn"
           onPointerDown={(e) => {

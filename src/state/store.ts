@@ -11,7 +11,7 @@ import {
   setHighestLevelPassed,
   setLevelFails,
 } from "./storage";
-import type { PowerUpType } from "@/game/powerups";
+import type { ActiveEffectInfo } from "@/render/engine";
 
 export type GamePhase =
   | "title"
@@ -26,9 +26,8 @@ interface GameState {
   score: number;
   bestScore: number;
   lives: number;
-  activePowerUp: PowerUpType | null;
-  /** 0-1 remaining ratio for the active timed power-up; 1 = just activated */
-  powerUpTimeRatio: number;
+  /** Every currently-active timed power-up (independent slots — multiple can be active at once). */
+  activeEffects: ActiveEffectInfo[];
   /** Highest level number fully cleared this session; "Start" resumes at highestLevelPassed + 1. Reset by restartFromLevelOne. */
   highestLevelPassed: number;
   /** All-time record level reached this session; never reset, shown alongside best score. */
@@ -47,8 +46,7 @@ interface GameState {
   levelClear: () => void;
   nextLevel: () => void;
   gameOver: () => void;
-  setActivePowerUp: (p: PowerUpType | null) => void;
-  setPowerUpTimeRatio: (r: number) => void;
+  setActiveEffects: (effects: ActiveEffectInfo[]) => void;
   addLife: () => void;
   /** Reads all localStorage-backed state (best score, level progress, in-progress resume) after mount, avoiding an SSR/client hydration mismatch. */
   hydrateFromStorage: () => void;
@@ -72,8 +70,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   score: 0,
   bestScore: 0,
   lives: LIVES_PER_LEVEL,
-  activePowerUp: null,
-  powerUpTimeRatio: 0,
+  activeEffects: [],
   highestLevelPassed: 0,
   bestLevelReached: 0,
   failsOnCurrentLevel: 0,
@@ -86,8 +83,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         level,
         score: 0,
         lives: LIVES_PER_LEVEL,
-        activePowerUp: null,
-        powerUpTimeRatio: 0,
+        activeEffects: [],
         failsOnCurrentLevel: getLevelFails(level),
       };
     }),
@@ -100,8 +96,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       level: 1,
       score: 0,
       lives: LIVES_PER_LEVEL,
-      activePowerUp: null,
-      powerUpTimeRatio: 0,
+      activeEffects: [],
       highestLevelPassed: 0,
       failsOnCurrentLevel: 0,
     });
@@ -112,8 +107,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       phase: "playing",
       score: 0,
       lives: LIVES_PER_LEVEL,
-      activePowerUp: null,
-      powerUpTimeRatio: 0,
+      activeEffects: [],
     }),
 
   goToTitle: () => set({ phase: "title" }),
@@ -159,8 +153,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         level: s.level + 1,
         score: 0,
         lives: LIVES_PER_LEVEL,
-        activePowerUp: null,
-        powerUpTimeRatio: 0,
+        activeEffects: [],
         highestLevelPassed,
         bestLevelReached,
         failsOnCurrentLevel: 0,
@@ -169,8 +162,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   gameOver: () => set({ phase: "gameOver" }),
 
-  setActivePowerUp: (p) => set({ activePowerUp: p, powerUpTimeRatio: p ? 1 : 0 }),
-  setPowerUpTimeRatio: (r) => set({ powerUpTimeRatio: r }),
+  setActiveEffects: (effects) => set({ activeEffects: effects }),
   addLife: () => set((s) => ({ lives: s.lives + 1 })),
 
   hydrateFromStorage: () => {
