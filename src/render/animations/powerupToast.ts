@@ -14,12 +14,21 @@ const POWERUP_MESSAGES: Record<PowerUpType, string> = {
 
 /** Floating label that rises and fades, explaining what a caught power-up does. */
 export function playPowerUpToast(layer: Container, x: number, y: number, type: PowerUpType): void {
+  playFloatingToast(layer, x, y, POWERUP_MESSAGES[type], 0xffffff);
+}
+
+/** Floating label that rises and fades, reporting a life lost when the ball drops. */
+export function playLifeLostToast(layer: Container, x: number, y: number): void {
+  playFloatingToast(layer, x, y, "-1 Life", 0xfca5a5);
+}
+
+function playFloatingToast(layer: Container, x: number, y: number, message: string, color: number): void {
   const text = new Text({
-    text: POWERUP_MESSAGES[type],
+    text: message,
     style: {
       fontSize: 13,
       fontWeight: "700",
-      fill: 0xffffff,
+      fill: color,
       stroke: { color: 0x0a0715, width: 3 },
     },
   });

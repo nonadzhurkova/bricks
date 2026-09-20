@@ -43,7 +43,7 @@ import { playPowerUpRevealBreak } from "./animations/powerupReveal";
 import { playPaddleImpact } from "./animations/paddleImpact";
 import { startSlowRipple } from "./animations/slowRipple";
 import { startBottomWall } from "./animations/bottomWall";
-import { playPowerUpToast } from "./animations/powerupToast";
+import { playPowerUpToast, playLifeLostToast } from "./animations/powerupToast";
 import { endlessBaseSpeed } from "@/game/generate";
 
 export interface EngineCallbacks {
@@ -465,6 +465,7 @@ export class GameEngine {
         this.ballVel.y = -Math.abs(this.ballVel.y);
       } else {
         this.ballLost = true;
+        playLifeLostToast(this.effectsLayer, this.paddleX + this.paddleWidth / 2, this.paddle.container.y - 20);
         this.callbacks.onLifeLost();
         return true;
       }
