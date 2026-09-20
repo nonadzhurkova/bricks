@@ -1,6 +1,6 @@
 "use client";
 
-import { useGameStore, TOTAL_LEVELS, LIVES_PER_LEVEL } from "@/state/store";
+import { useGameStore, LIVES_PER_LEVEL } from "@/state/store";
 import LivesDots from "../LivesDots";
 
 export default function HUD() {
@@ -9,15 +9,10 @@ export default function HUD() {
   const lives = useGameStore((s) => s.lives);
   const pause = useGameStore((s) => s.pause);
 
-  const isEndless = level > TOTAL_LEVELS;
-
   return (
     <div className="hud">
       <div>Score: {score}</div>
-      <div>
-        Level {level}
-        {isEndless && <span className="endless-badge">ENDLESS</span>}
-      </div>
+      <div>Level {level}</div>
       <LivesDots lives={lives} total={Math.max(lives, LIVES_PER_LEVEL)} />
       <button className="icon-btn" onClick={pause} aria-label="Pause">
         ❚❚

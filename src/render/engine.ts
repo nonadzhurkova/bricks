@@ -791,6 +791,18 @@ export class GameEngine {
       return;
     }
 
+    // Catching the same power-up that's already active just refreshes its
+    // timer back to full duration, instead of tearing down and rebuilding
+    // the same visual state (ripple/wall restart) for no reason. Scoped to
+    // Slow and Wall only — Enlarge/Reduce/Catch/Laser keep the original
+    // full replace-on-catch behavior even for a same-type recatch.
+    const REFRESHABLE_TYPES: PowerUpType[] = ["slow", "wall"];
+    if (this.activePowerUp === type && REFRESHABLE_TYPES.includes(type)) {
+      this.powerUpElapsedMs = 0;
+      this.callbacks.onPowerUpTimeRatio?.(1);
+      return;
+    }
+
     // catching any new power-up reverts a previous Reduce (or any other active state)
     this.clearPowerUp();
 
