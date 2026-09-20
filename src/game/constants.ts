@@ -33,3 +33,8 @@ export const LASER_WIDTH = 3;
 export const LASER_HEIGHT = 14;
 export const LASER_SPEED = 480; // px/sec
 export const LASER_COOLDOWN_MS = 280;
+
+/** Delay before a destroyed regenerating brick reappears at its grid position. */
+export const REGROW_DELAY_MS = 5000;
+/** Duration of the fade/scale-in tween when a regenerating brick reappears. */
+export const REGROW_ANIM_MS = 1000;

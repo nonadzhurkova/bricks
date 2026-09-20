@@ -66,4 +66,10 @@ describe("level grids", () => {
       expect(explosiveCount).toBeLessThanOrEqual(4);
     });
   });
+
+  it("none of the 8 hand-built levels use the regenerating brick type (endless-mode only)", () => {
+    levels.forEach((level) => {
+      expect(level.grid.join("").includes("G")).toBe(false);
+    });
+  });
 });

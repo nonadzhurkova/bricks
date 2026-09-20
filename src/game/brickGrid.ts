@@ -25,12 +25,14 @@ export interface Brick {
   maxHits: number;
   powerUp: PowerUpType | null;
   alive: boolean;
+  /** Regenerating bricks only: engine-clock ms timestamp when a dead one should regrow. Null otherwise/while alive. */
+  regrowAt: number | null;
 }
 
 /** Minimal per-brick shape needed to persist/restore exact brick state (no derived x/y/width/height). */
 export type SavedBrick = Pick<
   Brick,
-  "id" | "col" | "row" | "type" | "hitsRemaining" | "maxHits" | "powerUp" | "alive"
+  "id" | "col" | "row" | "type" | "hitsRemaining" | "maxHits" | "powerUp" | "alive" | "regrowAt"
 >;
 
 function pickPowerUp(rng: () => number): PowerUpType | null {
@@ -68,6 +70,7 @@ export function buildBricksFromLevel(level: LevelDef, rng: () => number = Math.r
         maxHits,
         powerUp: canCarryPowerUp ? pickPowerUp(rng) : null,
         alive: true,
+        regrowAt: null,
       });
     }
   });
@@ -75,8 +78,15 @@ export function buildBricksFromLevel(level: LevelDef, rng: () => number = Math.r
   return bricks;
 }
 
+/**
+ * Win condition: every brick that actually needs to be destroyed is gone.
+ * Indestructible bricks never count (can't be destroyed); regenerating
+ * bricks never count either (destroying one is intentionally temporary —
+ * a level can be "cleared" while regenerating bricks are still present or
+ * mid-regrow, per their design).
+ */
 export function allBreakableBricksCleared(bricks: Brick[]): boolean {
-  return bricks.every((b) => !b.alive || b.type === "indestructible");
+  return bricks.every((b) => !b.alive || b.type === "indestructible" || b.type === "regenerating");
 }
 
 /** Rebuilds positioned Brick[] from a resume snapshot's saved bricks, deriving x/y from col/row. */

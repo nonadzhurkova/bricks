@@ -15,7 +15,7 @@ function saveSnapshotIfLive(engine: GameEngine): void {
   if (s.phase !== "playing" && s.phase !== "paused") return;
   const bricks = engine
     .getBricks()
-    .map(({ id, col, row, type, hitsRemaining, maxHits, powerUp, alive }: Brick) => ({
+    .map(({ id, col, row, type, hitsRemaining, maxHits, powerUp, alive, regrowAt }: Brick) => ({
       id,
       col,
       row,
@@ -24,6 +24,12 @@ function saveSnapshotIfLive(engine: GameEngine): void {
       maxHits,
       powerUp,
       alive,
+      // regrowAt is measured against the engine's own elapsedMs clock, which
+      // resets to 0 on every loadLevel — a raw saved timestamp would be
+      // meaningless after a reload, so just note whether a regrow was
+      // pending; loadLevel restarts a fresh regrow window for it instead of
+      // trying to preserve the exact remaining delay.
+      regrowAt: regrowAt !== null ? 0 : null,
     }));
   saveResumeSnapshot({ level: s.level, score: s.score, lives: s.lives, bricks });
 }

@@ -136,6 +136,22 @@ describe("generateEndlessLevel", () => {
       expect(lastTwoRows.includes("E")).toBe(false);
     }
   });
+
+  it("caps regenerating bricks at a small fixed count, not scaled with level/density", () => {
+    for (const level of [9, 20, 50, 100, 300, 900]) {
+      const def = generateEndlessLevel(level);
+      const count = [...def.grid.join("")].filter((c) => c === "G").length;
+      expect(count).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("never places regenerating bricks in the always-clear bottom rows", () => {
+    for (const level of [9, 20, 50, 100]) {
+      const def = generateEndlessLevel(level);
+      const lastTwoRows = def.grid.slice(-2).join("");
+      expect(lastTwoRows.includes("G")).toBe(false);
+    }
+  });
 });
 
 describe("isSolvable", () => {

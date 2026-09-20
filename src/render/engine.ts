@@ -20,6 +20,8 @@ import {
   PADDLE_Y_OFFSET,
   POWERUP_FALL_SPEED,
   REDUCE_WIDTH_MULTIPLIER,
+  REGROW_ANIM_MS,
+  REGROW_DELAY_MS,
   SLOW_SPEED_MULTIPLIER,
   SPEED_PER_LEVEL_INCREASE,
 } from "@/game/constants";
@@ -29,7 +31,9 @@ import type { LevelDef } from "@/game/levels/types";
 import { POWERUPS, type PowerUpType } from "@/game/powerups";
 import { createBallSprite, updateBallTrail, type BallSprite } from "./sprites/ball";
 import { createPaddleSprite, drawPaddleBody, type PaddleSprite } from "./sprites/paddle";
-import { BRICK_PALETTE, createBrickGraphics } from "./sprites/brick";
+import { BRICK_PALETTE, createBrickGraphics, createRegrowGhost } from "./sprites/brick";
+import { startRegrowIdlePulse } from "./animations/regrowPulse";
+import { playBrickRegrow } from "./animations/brickRegrow";
 import { createCapsuleSprite } from "./sprites/capsule";
 import { playNormalBreak } from "./animations/brickBreakNormal";
 import { playReinforcedCrack } from "./animations/brickBreakReinforced";
@@ -84,6 +88,10 @@ export class GameEngine {
 
   private bricks: Brick[] = [];
   private brickSprites = new Map<string, Container>();
+  /** Idle ambient-pulse stop functions for currently-healthy regenerating brick sprites, keyed by brick id — killed whenever that sprite is replaced (hit, broken, regrown) or the level reloads. */
+  private brickPulseStops = new Map<string, () => void>();
+  /** Engine-owned clock (ms since loadLevel/resetLevel), used for regrowAt timestamps — advances only while running, so it naturally pauses with the rest of the game instead of drifting against a wall clock. */
+  private elapsedMs = 0;
 
   private capsules: FallingCapsule[] = [];
   private laserLayer = new Container();
@@ -158,6 +166,8 @@ export class GameEngine {
 
     this.brickLayer.removeChildren();
     this.brickSprites.clear();
+    this.brickPulseStops.forEach((stop) => stop());
+    this.brickPulseStops.clear();
     this.capsuleLayer.removeChildren();
     this.capsules = [];
     this.laserLayer.removeChildren();
@@ -165,23 +175,36 @@ export class GameEngine {
     this.bricks = savedBricks ?? buildBricksFromLevel(level);
     this.clearPowerUp();
     this.levelClearTriggered = false;
+    this.elapsedMs = 0;
+
+    // A resumed dead regenerating brick's regrowAt was measured against the
+    // previous session's elapsedMs clock, now reset to 0 — restart a fresh
+    // regrow window for it instead of carrying over a stale/meaningless
+    // timestamp.
+    this.bricks.forEach((brick) => {
+      if (brick.type === "regenerating" && !brick.alive) {
+        brick.regrowAt = this.elapsedMs + REGROW_DELAY_MS;
+      }
+    });
 
     const animateEntrance = !savedBricks;
 
     this.bricks.forEach((brick, i) => {
-      if (!brick.alive) return;
-      const sprite = createBrickGraphics(
-        brick.type,
-        brick.width,
-        brick.height,
-        brick.type === "reinforced" && brick.hitsRemaining < brick.maxHits,
-      );
+      // A dead regenerating brick still gets a sprite (its ghost outline) —
+      // every other dead brick has nothing left to show.
+      if (!brick.alive && brick.type !== "regenerating") return;
+
+      const sprite = this.createSpriteForBrick(brick);
       sprite.x = brick.x;
       sprite.y = brick.y;
       this.brickLayer.addChild(sprite);
       this.brickSprites.set(brick.id, sprite);
 
-      if (animateEntrance) {
+      if (brick.alive && brick.type === "regenerating") {
+        this.brickPulseStops.set(brick.id, startRegrowIdlePulse(sprite));
+      }
+
+      if (animateEntrance && brick.alive) {
         sprite.alpha = 0;
         sprite.scale.set(0.6);
         gsap.to(sprite, {
@@ -336,6 +359,7 @@ export class GameEngine {
     const now = performance.now();
     const dt = Math.min((now - this.lastTime) / 1000, 1 / 30);
     this.lastTime = now;
+    this.elapsedMs += dt * 1000;
 
     this.updatePaddle(dt);
     this.updateBall(dt);
@@ -343,6 +367,7 @@ export class GameEngine {
     this.updateLasers(dt);
     this.updatePowerUpTimer(dt);
     this.updateStallCheck(dt);
+    this.updateRegrowth();
     this.render();
   };
 
@@ -510,16 +535,25 @@ export class GameEngine {
 
     this.callbacks.onScore(BRICK_SCORE[brick.type]);
 
-    if (brick.type === "reinforced" && brick.hitsRemaining > 0) {
+    // Reinforced and regenerating both take 2 hits: crack on the first,
+    // full break on the second. Reinforced dims toward grey ("damaged,
+    // weakening"); regenerating stays full teal while cracked ("damaged but
+    // still alive" — dimming would read as "dying", which is wrong for a
+    // brick that's about to come back anyway).
+    if ((brick.type === "reinforced" || brick.type === "regenerating") && brick.hitsRemaining > 0) {
       playReinforcedCrack(this.effectsLayer, brick.x, brick.y, brick.width, brick.height);
+      this.stopPulse(brick.id);
       const sprite = this.brickSprites.get(brick.id);
       if (sprite) {
         sprite.destroy();
-        const dimmed = createBrickGraphics(brick.type, brick.width, brick.height, true);
-        dimmed.x = brick.x;
-        dimmed.y = brick.y;
-        this.brickLayer.addChild(dimmed);
-        this.brickSprites.set(brick.id, dimmed);
+        const cracked = createBrickGraphics(brick.type, brick.width, brick.height, {
+          cracked: true,
+          dimmed: brick.type === "reinforced",
+        });
+        cracked.x = brick.x;
+        cracked.y = brick.y;
+        this.brickLayer.addChild(cracked);
+        this.brickSprites.set(brick.id, cracked);
       }
       this.callbacks.onBricksChanged?.(this.bricks);
       return;
@@ -541,6 +575,7 @@ export class GameEngine {
 
   private breakBrick(brick: Brick): void {
     brick.alive = false;
+    this.stopPulse(brick.id);
     const sprite = this.brickSprites.get(brick.id);
     sprite?.destroy();
     this.brickSprites.delete(brick.id);
@@ -566,6 +601,69 @@ export class GameEngine {
         height: brick.height,
         color,
       });
+    }
+
+    if (brick.type === "regenerating") {
+      brick.regrowAt = this.elapsedMs + REGROW_DELAY_MS;
+      const ghost = createRegrowGhost(brick.width, brick.height);
+      ghost.x = brick.x;
+      ghost.y = brick.y;
+      this.brickLayer.addChild(ghost);
+      this.brickSprites.set(brick.id, ghost);
+    }
+  }
+
+  /** Stops and forgets a brick's idle-pulse loop, if it has one — safe to call on any brick id. */
+  private stopPulse(brickId: string): void {
+    this.brickPulseStops.get(brickId)?.();
+    this.brickPulseStops.delete(brickId);
+  }
+
+  /** Builds the correct sprite for a brick's *current* state: healthy (with idle pulse if regenerating), cracked, or — for a dead regenerating brick — its ghost outline. */
+  private createSpriteForBrick(brick: Brick): Container {
+    if (!brick.alive && brick.type === "regenerating") {
+      return createRegrowGhost(brick.width, brick.height);
+    }
+    return createBrickGraphics(brick.type, brick.width, brick.height, {
+      cracked: (brick.type === "reinforced" || brick.type === "regenerating") && brick.hitsRemaining < brick.maxHits,
+      dimmed: brick.type === "reinforced" && brick.hitsRemaining < brick.maxHits,
+    });
+  }
+
+  /**
+   * Regrow cycle for regenerating bricks: any dead one whose regrowAt has
+   * elapsed on the engine's own clock comes back — hitsRemaining resets to
+   * full, its ghost sprite is swapped for a fresh healthy sprite, and that
+   * sprite plays a slow (REGROW_ANIM_MS) fade/scale-in rather than popping
+   * in instantly, plus resumes its idle ambient pulse once fully healthy.
+   */
+  private updateRegrowth(): void {
+    if (this.bricks.length === 0 || this.levelClearTriggered) return;
+
+    for (const brick of this.bricks) {
+      if (brick.type !== "regenerating" || brick.alive || brick.regrowAt === null) continue;
+      if (this.elapsedMs < brick.regrowAt) continue;
+
+      brick.alive = true;
+      brick.hitsRemaining = brick.maxHits;
+      brick.regrowAt = null;
+
+      const ghost = this.brickSprites.get(brick.id);
+      ghost?.destroy();
+
+      const sprite = this.createSpriteForBrick(brick);
+      sprite.x = brick.x;
+      sprite.y = brick.y;
+      this.brickLayer.addChild(sprite);
+      this.brickSprites.set(brick.id, sprite);
+
+      playBrickRegrow(sprite, REGROW_ANIM_MS).eventCallback("onComplete", () => {
+        if (brick.alive) {
+          this.brickPulseStops.set(brick.id, startRegrowIdlePulse(sprite));
+        }
+      });
+
+      this.callbacks.onBricksChanged?.(this.bricks);
     }
   }
 

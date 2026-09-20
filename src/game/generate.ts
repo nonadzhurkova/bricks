@@ -141,6 +141,53 @@ function placeExplosiveBricks(grid: Cell[][], rng: () => number): void {
 }
 
 /**
+ * Fixed cap on regenerating bricks per level, same reasoning as
+ * EXPLOSIVE_BRICK_CAP — a background "keeps coming back" mechanic should
+ * stay a rare accent, not scale with endless mode's growing brick density
+ * (which would otherwise turn very high levels into mostly-regenerating
+ * boards that never actually clear).
+ */
+const REGENERATING_BRICK_CAP = 4;
+
+/**
+ * Final pass (runs after explosive placement, on whatever normal/reinforced
+ * cells remain): converts up to REGENERATING_BRICK_CAP of them to
+ * regenerating. No strict spacing rule is required here (unlike explosive),
+ * but picks are spread across column bands — one per band — so the cap
+ * doesn't cluster into a single dead zone on a dense board; if a band runs
+ * out of candidates, remaining picks just draw from whatever's left.
+ */
+function placeRegeneratingBricks(grid: Cell[][], rng: () => number): void {
+  const candidates: [number, number][] = [];
+  for (let row = 0; row < grid.length; row++) {
+    for (let col = 0; col < grid[row].length; col++) {
+      if (grid[row][col] === "N" || grid[row][col] === "R") {
+        candidates.push([row, col]);
+      }
+    }
+  }
+  if (candidates.length === 0) return;
+
+  const cols = grid[0].length;
+  const bandWidth = Math.max(1, Math.ceil(cols / REGENERATING_BRICK_CAP));
+
+  for (let i = 0; i < REGENERATING_BRICK_CAP; i++) {
+    const bandStart = i * bandWidth;
+    const bandEnd = bandStart + bandWidth;
+    const inBand = candidates.filter(([, col]) => col >= bandStart && col < bandEnd);
+    const pool = inBand.length > 0 ? inBand : candidates;
+    if (pool.length === 0) break;
+
+    const pick = pool[Math.floor(rng() * pool.length)];
+    const [row, col] = pick;
+    grid[row][col] = "G";
+
+    const idx = candidates.findIndex(([r, c]) => r === row && c === col);
+    if (idx !== -1) candidates.splice(idx, 1);
+  }
+}
+
+/**
  * Ball base speed for endless levels: matches the same per-level increase
  * used by the hand-built levels through level 8, then keeps climbing at a
  * slower, purely logarithmic rate — meaningfully faster at level 900 than
@@ -159,7 +206,7 @@ export function endlessBaseSpeed(level: number, baseSpeed: number, perLevelIncre
 
 // ---- generation ----------------------------------------------------------
 
-export type Cell = "." | "N" | "R" | "I" | "E";
+export type Cell = "." | "N" | "R" | "I" | "E" | "G";
 
 /** Maps brickWeightsForLevel's named keys to the single-char grid codes BRICK_CHAR_MAP expects. */
 const TYPE_TO_CHAR: Record<string, Cell> = {
@@ -167,6 +214,7 @@ const TYPE_TO_CHAR: Record<string, Cell> = {
   reinforced: "R",
   indestructible: "I",
   explosive: "E",
+  regenerating: "G",
 };
 
 function weightedPick(rng: () => number, weights: Record<string, number>): string {
@@ -212,6 +260,7 @@ function buildCandidateGrid(level: number, rng: () => number): Cell[][] {
   }
 
   placeExplosiveBricks(grid, rng);
+  placeRegeneratingBricks(grid, rng);
 
   return grid;
 }
