@@ -35,6 +35,11 @@ export const MAX_BALL_SPEED = 950; // px/sec
 export const POWERUP_DROP_CHANCE = 0.18; // 15-20%
 export const POWERUP_FALL_SPEED = 160; // px/sec
 
+/** Diamond (Fireball+Wall combined, permanent for the level) only drops from this level onward — a rare deep-endless reward, not part of the normal drop table. */
+export const DIAMOND_MIN_LEVEL = 100;
+/** Independent per-eligible-brick roll chance for Diamond, on top of (not replacing) the normal power-up roll — kept low since it's meant to be rare even at level 100+. */
+export const DIAMOND_DROP_CHANCE = 0.04;
+
 export const ENLARGE_WIDTH_MULTIPLIER = 1.5;
 export const REDUCE_WIDTH_MULTIPLIER = 0.5;
 export const SLOW_SPEED_MULTIPLIER = 0.6;

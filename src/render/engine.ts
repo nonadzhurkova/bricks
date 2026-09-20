@@ -478,9 +478,9 @@ export class GameEngine {
       this.ballVel.y = Math.abs(this.ballVel.y);
     }
 
-    // ball lost — unless Wall is active, in which case the bottom bounces like a wall
+    // ball lost — unless Wall (or Diamond, which includes Wall's effect) is active
     if (this.ballPos.y + BALL_RADIUS > ARENA_HEIGHT) {
-      if (this.activePowerUp === "wall") {
+      if (this.activePowerUp === "wall" || this.activePowerUp === "diamond") {
         this.ballPos.y = ARENA_HEIGHT - BALL_RADIUS;
         this.ballVel.y = -Math.abs(this.ballVel.y);
       } else {
@@ -513,7 +513,7 @@ export class GameEngine {
     }
 
     // brick collisions
-    if (this.activePowerUp === "fireball") {
+    if (this.activePowerUp === "fireball" || this.activePowerUp === "diamond") {
       // Passes straight through every brick in its path — no bounce, no
       // penetration push-back, no speed rescale. Indestructible bricks are
       // ignored entirely (can't be burned, so no spark/effect either).
@@ -908,6 +908,15 @@ export class GameEngine {
       case "fireball":
         setBallFireball(this.ball, BALL_RADIUS, true);
         break;
+      case "diamond":
+        // Fireball + Wall combined, and — unlike either alone — lasts for
+        // the rest of the current level rather than a timer (POWERUPS.diamond
+        // has no `duration`, so updatePowerUpTimer never counts it down).
+        // Rare, level-100+-only reward (see DIAMOND_MIN_LEVEL/
+        // DIAMOND_DROP_CHANCE in game/constants.ts).
+        this.stopBottomWall = startBottomWall(this.world, ARENA_WIDTH, ARENA_HEIGHT);
+        setBallFireball(this.ball, BALL_RADIUS, true);
+        break;
       case "catch":
       case "laser":
       case "magnet":
@@ -924,7 +933,7 @@ export class GameEngine {
     this.slowActive = false;
     this.stopBottomWall?.();
     this.stopBottomWall = null;
-    if (this.activePowerUp === "fireball") {
+    if (this.activePowerUp === "fireball" || this.activePowerUp === "diamond") {
       setBallFireball(this.ball, BALL_RADIUS, false);
     }
     if (this.ballStuckToPaddle) {

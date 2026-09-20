@@ -6,6 +6,8 @@ import {
   BRICK_SIDE_MARGIN,
   BRICK_TOP_MARGIN,
   BRICK_WIDTH,
+  DIAMOND_DROP_CHANCE,
+  DIAMOND_MIN_LEVEL,
   POWERUP_DROP_CHANCE,
 } from "./constants";
 import type { LevelDef } from "./levels/types";
@@ -35,7 +37,16 @@ export type SavedBrick = Pick<
   "id" | "col" | "row" | "type" | "hitsRemaining" | "maxHits" | "powerUp" | "alive" | "regrowAt"
 >;
 
-function pickPowerUp(rng: () => number): PowerUpType | null {
+/**
+ * Diamond is rolled independently of (before, not instead of) the normal
+ * power-up table — a separate rare chance rather than one slot in the
+ * weighted table, so adding it doesn't dilute how often the other
+ * power-ups appear. Only eligible from DIAMOND_MIN_LEVEL onward.
+ */
+function pickPowerUp(rng: () => number, levelNumber: number): PowerUpType | null {
+  if (levelNumber >= DIAMOND_MIN_LEVEL && rng() < DIAMOND_DROP_CHANCE) {
+    return "diamond";
+  }
   if (rng() > POWERUP_DROP_CHANCE) return null;
   const idx = Math.floor(rng() * POWERUP_DROP_TABLE.length);
   return POWERUP_DROP_TABLE[idx];
@@ -68,7 +79,7 @@ export function buildBricksFromLevel(level: LevelDef, rng: () => number = Math.r
         type,
         hitsRemaining: maxHits,
         maxHits,
-        powerUp: canCarryPowerUp ? pickPowerUp(rng) : null,
+        powerUp: canCarryPowerUp ? pickPowerUp(rng, level.id) : null,
         alive: true,
         regrowAt: null,
       });

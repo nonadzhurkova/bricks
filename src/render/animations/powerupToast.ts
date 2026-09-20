@@ -12,6 +12,7 @@ const POWERUP_MESSAGES: Record<PowerUpType, string> = {
   wall: "Floor Sealed",
   magnet: "Magnet Paddle",
   fireball: "Fireball!",
+  diamond: "Diamond Power!",
 };
 
 /** Floating label that rises and fades, explaining what a caught power-up does. */

@@ -7,7 +7,8 @@ export type PowerUpType =
   | "extraLife"
   | "wall"
   | "magnet"
-  | "fireball";
+  | "fireball"
+  | "diamond";
 
 export interface PowerUpDef {
   type: PowerUpType;
@@ -27,6 +28,11 @@ export const POWERUPS: Record<PowerUpType, PowerUpDef> = {
   wall: { type: "wall", label: "W", color: 0x22c55e, duration: 10000 },
   magnet: { type: "magnet", label: "M", color: 0xec4899, duration: 15000 },
   fireball: { type: "fireball", label: "F", color: 0xf97316, duration: 8000 },
+  // No duration: like extraLife, this isn't a timed effect — Diamond stays
+  // active for the rest of the current level (cleared by loadLevel on the
+  // next level, not by a countdown). See engine.ts's applyPowerUp/
+  // clearPowerUp for how "diamond" combines fireball + wall.
+  diamond: { type: "diamond", label: "D", color: 0x60a5fa },
 };
 
 export const POWERUP_DROP_TABLE: PowerUpType[] = [
