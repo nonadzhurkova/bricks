@@ -12,6 +12,7 @@ const PADDLE_COLORS: Record<PaddleVisualState, { fill: number; highlight: number
   slow: { fill: 0xfbbf24, highlight: 0xfef3c7 },
   extraLife: { fill: 0x8b5cf6, highlight: 0xc4b5fd },
   wall: { fill: 0x22c55e, highlight: 0x86efac },
+  magnet: { fill: 0xec4899, highlight: 0xf9a8d4 },
 };
 
 export interface PaddleSprite {

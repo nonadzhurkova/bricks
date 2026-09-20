@@ -10,6 +10,7 @@ const POWERUP_MESSAGES: Record<PowerUpType, string> = {
   slow: "Ball Slowed",
   extraLife: "+1 Life",
   wall: "Floor Sealed",
+  magnet: "Magnet Paddle",
 };
 
 /** Floating label that rises and fades, explaining what a caught power-up does. */

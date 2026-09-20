@@ -442,6 +442,10 @@ export class GameEngine {
 
   /** Advances the ball by dt; returns true if the ball was lost this step. */
   private stepBall(dt: number): boolean {
+    if (this.activePowerUp === "magnet") {
+      this.applyMagnetPull(dt);
+    }
+
     this.ballPos.x += this.ballVel.x * dt;
     this.ballPos.y += this.ballVel.y * dt;
 
@@ -509,6 +513,39 @@ export class GameEngine {
     }
 
     return false;
+  }
+
+  /**
+   * Magnet: while the ball is moving downward (toward the paddle), bend its
+   * horizontal velocity toward the paddle's current center each step — a
+   * gentle continuous pull, not a snap — so it's much more likely to reach
+   * the paddle. Speed magnitude is preserved (only the direction is
+   * steered) so this doesn't interact with the rally-speed/Slow systems.
+   * Has no effect while the ball is moving upward, away from the paddle.
+   */
+  private applyMagnetPull(dt: number): void {
+    if (this.ballVel.y <= 0) return;
+
+    const paddleCenterX = this.paddleX + this.paddleWidth / 2;
+    const toPaddleX = paddleCenterX - this.ballPos.x;
+    if (Math.abs(toPaddleX) < 1) return;
+
+    const speed = Math.hypot(this.ballVel.x, this.ballVel.y);
+    if (speed <= 0) return;
+
+    const pullStrength = 2.2; // radians/sec turn rate toward the paddle, tuned to feel like a steady pull rather than an instant snap
+    const currentAngle = Math.atan2(this.ballVel.y, this.ballVel.x);
+    const targetAngle = Math.atan2(ARENA_HEIGHT - this.ballPos.y, toPaddleX);
+
+    let delta = targetAngle - currentAngle;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+
+    const maxTurn = pullStrength * dt;
+    const turn = clamp(delta, -maxTurn, maxTurn);
+    const newAngle = currentAngle + turn;
+
+    this.ballVel = { x: Math.cos(newAngle) * speed, y: Math.sin(newAngle) * speed };
   }
 
   private handleBrickHit(
@@ -831,6 +868,7 @@ export class GameEngine {
         break;
       case "catch":
       case "laser":
+      case "magnet":
         break;
     }
   }
