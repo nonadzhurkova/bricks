@@ -25,6 +25,11 @@ export function playLifeLostToast(layer: Container, x: number, y: number): void 
   playFloatingToast(layer, x, y, "-1 Life", 0xfca5a5);
 }
 
+/** Floating "+N" that rises and fades from a brick's position when it scores points. */
+export function playScorePopup(layer: Container, x: number, y: number, points: number): void {
+  playFloatingToast(layer, x, y, `+${points}`, 0xffe066);
+}
+
 function playFloatingToast(layer: Container, x: number, y: number, message: string, color: number): void {
   const text = new Text({
     text: message,

@@ -44,7 +44,7 @@ import { playPowerUpRevealBreak } from "./animations/powerupReveal";
 import { playPaddleImpact } from "./animations/paddleImpact";
 import { startSlowRipple } from "./animations/slowRipple";
 import { startBottomWall } from "./animations/bottomWall";
-import { playPowerUpToast, playLifeLostToast } from "./animations/powerupToast";
+import { playPowerUpToast, playLifeLostToast, playScorePopup } from "./animations/powerupToast";
 import { endlessBaseSpeed } from "@/game/generate";
 
 /** One entry per currently-active timed power-up, reported to the host for HUD display. ratio is 1 (just activated/refreshed) down to 0 (about to expire); untilLevelEnd effects (granted by Diamond) stay at a fixed ratio and are only cleared by the next loadLevel, not a countdown. */
@@ -636,7 +636,11 @@ export class GameEngine {
       brick.hitsRemaining -= 1;
     }
 
-    this.callbacks.onScore(BRICK_SCORE[brick.type]);
+    const points = BRICK_SCORE[brick.type];
+    this.callbacks.onScore(points);
+    if (points > 0) {
+      playScorePopup(this.effectsLayer, brick.x + brick.width / 2, brick.y + brick.height / 2, points);
+    }
 
     // Reinforced and regenerating both take 2 hits: crack on the first,
     // full break on the second. Reinforced dims toward grey ("damaged,
