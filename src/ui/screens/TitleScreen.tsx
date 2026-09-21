@@ -5,7 +5,6 @@ import Overlay from "../Overlay";
 
 export default function TitleScreen() {
   const startGame = useGameStore((s) => s.startGame);
-  const restartFromLevelOne = useGameStore((s) => s.restartFromLevelOne);
   const bestScore = useGameStore((s) => s.bestScore);
   const highestLevelPassed = useGameStore((s) => s.highestLevelPassed);
   const bestLevelReached = useGameStore((s) => s.bestLevelReached);
@@ -21,11 +20,6 @@ export default function TitleScreen() {
       <button className="primary-btn" onClick={startGame}>
         {hasProgress ? `Continue — Level ${highestLevelPassed + 1}` : "Start"}
       </button>
-      {hasProgress && (
-        <button className="secondary-btn" onClick={restartFromLevelOne}>
-          Restart from level 1
-        </button>
-      )}
     </Overlay>
   );
 }
