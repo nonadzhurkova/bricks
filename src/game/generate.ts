@@ -232,11 +232,18 @@ const SPEED_RAMP_DECAY_LEVELS = 30;
  */
 export function endlessBaseSpeed(level: number, baseSpeed: number, perLevelIncrease: number): number {
   if (level <= SPEED_RAMP_LINEAR_UNTIL_LEVEL) {
-    return baseSpeed + (level - 1) * perLevelIncrease;
+    return Math.min(baseSpeed + (level - 1) * perLevelIncrease, MAX_BALL_SPEED);
   }
 
-  const speedAtRampStart = baseSpeed + (SPEED_RAMP_LINEAR_UNTIL_LEVEL - 1) * perLevelIncrease;
-  const remainingHeadroom = MAX_BALL_SPEED - speedAtRampStart;
+  // Headroom can be zero or negative if the linear ramp already reached
+  // MAX_BALL_SPEED by SPEED_RAMP_LINEAR_UNTIL_LEVEL (e.g. a lowered cap) —
+  // clamp to 0 so the decay curve holds flat at the cap instead of the
+  // exponential term flipping sign and making speed dip past the ramp.
+  const speedAtRampStart = Math.min(
+    baseSpeed + (SPEED_RAMP_LINEAR_UNTIL_LEVEL - 1) * perLevelIncrease,
+    MAX_BALL_SPEED,
+  );
+  const remainingHeadroom = Math.max(MAX_BALL_SPEED - speedAtRampStart, 0);
   const levelsPastRamp = level - SPEED_RAMP_LINEAR_UNTIL_LEVEL;
 
   return (

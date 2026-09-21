@@ -30,7 +30,7 @@ export const SPEED_PER_LEVEL_INCREASE = 14; // px/sec added per level
  * faster than this. Chosen from playtesting around level 20-30, where the
  * game still feels tracked/reactable at the top of the old linear curve.
  */
-export const MAX_BALL_SPEED = 950; // px/sec
+export const MAX_BALL_SPEED = 650; // px/sec
 
 export const POWERUP_DROP_CHANCE = 0.18; // 15-20%
 export const POWERUP_FALL_SPEED = 160; // px/sec

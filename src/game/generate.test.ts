@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateEndlessLevel, isSolvable, endlessBaseSpeed, type Cell } from "./generate";
 import { BRICK_CHAR_MAP } from "./brickTypes";
-import { BRICK_COLS, BRICK_ROWS } from "./constants";
+import { BRICK_COLS, BRICK_ROWS, MAX_BALL_SPEED } from "./constants";
 
 describe("generateEndlessLevel", () => {
   it("produces a grid with valid dimensions and only known brick chars", () => {
@@ -221,11 +221,11 @@ describe("isSolvable", () => {
 describe("endlessBaseSpeed", () => {
   const base = 260;
   const perLevel = 14;
-  const MAX_BALL_SPEED = 950;
 
-  it("matches the plain linear model through level 8 (and up through the linear ramp's end)", () => {
+  it("matches the plain linear model through level 8 (and up through the linear ramp's end, while still below the ceiling)", () => {
     for (const level of [1, 4, 8, 20, 30]) {
-      expect(endlessBaseSpeed(level, base, perLevel)).toBeCloseTo(base + (level - 1) * perLevel);
+      const linear = base + (level - 1) * perLevel;
+      expect(endlessBaseSpeed(level, base, perLevel)).toBeCloseTo(Math.min(linear, MAX_BALL_SPEED));
     }
   });
 
