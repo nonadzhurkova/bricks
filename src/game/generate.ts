@@ -6,7 +6,39 @@ const TOP_CLEAR_ROWS = 1;
 /** Bottom rows are always left clear so bricks never encroach on paddle/launch space. */
 const BOTTOM_CLEAR_ROWS = 2;
 
-const PLAYABLE_ROWS = BRICK_ROWS - TOP_CLEAR_ROWS - BOTTOM_CLEAR_ROWS;
+/** Endless levels 9-49 keep the original fixed grid height (matches the 8 hand-built levels). */
+const BASE_PLAYABLE_ROWS = BRICK_ROWS - TOP_CLEAR_ROWS - BOTTOM_CLEAR_ROWS;
+
+/**
+ * Levels-per-step and starting level for endless mode's playable-row growth.
+ * Sparse layout templates (checkerboard, staggered rows, etc.) only cover a
+ * fraction of their cells, so once density maxes out (~level 40) they can't
+ * reach the same total brick count as a full rectangle no matter how high
+ * density goes — there just aren't enough eligible cells. Growing the grid
+ * instead of excluding those templates gives every template more room to
+ * reach the level's target density, so shape variety and difficulty scaling
+ * stop fighting each other. There's ample arena space for it (see
+ * ARENA_HEIGHT/PADDLE_Y_OFFSET) — 8 rows only reaches a third of the way
+ * down even before this change.
+ */
+const ROW_GROWTH_STEP_LEVELS = 25;
+const ROW_GROWTH_START_LEVEL = 25;
+
+/**
+ * Ceiling on playable rows so the brick field can never grow into the
+ * paddle's safety margin — at BRICK_TOP_MARGIN=60/BRICK_HEIGHT=22/
+ * BRICK_GAP=4, 15 playable rows (18 total with clear rows) leaves ~100px of
+ * clearance above the paddle at PADDLE_Y_OFFSET=40; one more row would eat
+ * into that margin. Reached around level 275 at the current growth rate.
+ */
+const MAX_PLAYABLE_ROWS = 15;
+
+/** Extra playable rows (beyond BASE_PLAYABLE_ROWS) added every ROW_GROWTH_STEP_LEVELS levels, starting at ROW_GROWTH_START_LEVEL, capped at MAX_PLAYABLE_ROWS. */
+export function playableRowsForLevel(level: number): number {
+  if (level < ROW_GROWTH_START_LEVEL) return BASE_PLAYABLE_ROWS;
+  const steps = Math.floor((level - ROW_GROWTH_START_LEVEL) / ROW_GROWTH_STEP_LEVELS) + 1;
+  return Math.min(BASE_PLAYABLE_ROWS + steps, MAX_PLAYABLE_ROWS);
+}
 
 // ---- seeded PRNG (mulberry32) ----------------------------------------
 
@@ -252,6 +284,122 @@ export function endlessBaseSpeed(level: number, baseSpeed: number, perLevelIncre
   );
 }
 
+// ---- layout templates -----------------------------------------------------
+//
+// Without a template, every level was just uniform-random noise over the
+// same fixed 8-col x PLAYABLE_ROWS-row rectangle — different fill amounts,
+// but always the same silhouette, which read as "the same level" across
+// very different densities/levels. Templates fix that by masking which
+// cells are even eligible to hold a brick; density/type rolls (and the
+// difficulty curve behind them) still happen exactly as before, only
+// within the masked-in cells, so a template changes shape, never how hard
+// a level is.
+
+interface LayoutTemplate {
+  name: string;
+  /** Rough fill weight, used to bias selection toward fuller shapes at high levels — see templateWeightForLevel. */
+  tier: "sparse" | "medium" | "full";
+  /** row is 0-indexed within the playable band (0..rows-1), col is 0..BRICK_COLS-1, rows is that level's total playable row count (see playableRowsForLevel). Returns true if this cell is eligible to hold a brick. */
+  mask(row: number, col: number, rows: number): boolean;
+}
+
+const LAYOUT_TEMPLATES: LayoutTemplate[] = [
+  {
+    name: "full",
+    tier: "full",
+    mask: () => true,
+  },
+  {
+    name: "pyramid",
+    tier: "medium",
+    // widens by one column on each side per row going down
+    mask: (row, col, rows) => {
+      const half = BRICK_COLS / 2;
+      const width = Math.round(((row + 1) / rows) * half);
+      return Math.abs(col - (half - 0.5)) < width;
+    },
+  },
+  {
+    name: "invertedPyramid",
+    tier: "medium",
+    mask: (row, col, rows) => {
+      const half = BRICK_COLS / 2;
+      const width = Math.round(((rows - row) / rows) * half);
+      return Math.abs(col - (half - 0.5)) < width;
+    },
+  },
+  {
+    name: "diagonalBand",
+    tier: "sparse",
+    mask: (row, col, rows) => {
+      const bandCenter = (row / Math.max(rows - 1, 1)) * (BRICK_COLS - 1);
+      return Math.abs(col - bandCenter) <= 2.5;
+    },
+  },
+  {
+    name: "checkerboard",
+    tier: "medium",
+    mask: (row, col) => (row + col) % 2 === 0,
+  },
+  {
+    name: "columnsWithCenterGap",
+    tier: "medium",
+    mask: (_row, col) => col < 3 || col >= BRICK_COLS - 3,
+  },
+  {
+    name: "hollowFrame",
+    tier: "sparse",
+    mask: (row, col, rows) => row === 0 || row === rows - 1 || col === 0 || col === BRICK_COLS - 1,
+  },
+  {
+    name: "staggeredRows",
+    tier: "medium",
+    mask: (row, col) => (row % 2 === 0 ? true : col % 2 === 0),
+  },
+  {
+    name: "diamond",
+    tier: "sparse",
+    mask: (row, col, rows) => {
+      const rowCenter = (rows - 1) / 2;
+      const colCenter = (BRICK_COLS - 1) / 2;
+      const rNorm = Math.abs(row - rowCenter) / (rows / 2);
+      const cNorm = Math.abs(col - colCenter) / (BRICK_COLS / 2);
+      return rNorm + cNorm <= 1.05;
+    },
+  },
+];
+
+/**
+ * Per-tier selection weight given the level number — biases toward fuller
+ * templates as level rises so shape variety never undercuts the intended
+ * difficulty curve (a sparse template plus max density can still end up
+ * with far fewer bricks than a full template, which would make a high
+ * level feel easier by shape alone rather than by the density/toughness
+ * curve that's supposed to carry difficulty).
+ */
+function tierWeightForLevel(tier: LayoutTemplate["tier"], level: number): number {
+  const t = Math.min(Math.max((level - 9) / 60, 0), 1); // 0 at level 9, 1 by level ~69
+  switch (tier) {
+    case "sparse":
+      return Math.max(1 - t, 0.15);
+    case "medium":
+      return 1;
+    case "full":
+      return 0.6 + t * 0.8;
+  }
+}
+
+function pickLayoutTemplate(level: number, rng: () => number): LayoutTemplate {
+  const weights = LAYOUT_TEMPLATES.map((tpl) => tierWeightForLevel(tpl.tier, level));
+  const total = weights.reduce((sum, w) => sum + w, 0);
+  let roll = rng() * total;
+  for (let i = 0; i < LAYOUT_TEMPLATES.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return LAYOUT_TEMPLATES[i];
+  }
+  return LAYOUT_TEMPLATES[LAYOUT_TEMPLATES.length - 1];
+}
+
 // ---- generation ----------------------------------------------------------
 
 export type Cell = "." | "N" | "R" | "I" | "E" | "G";
@@ -281,16 +429,40 @@ function weightedPick(rng: () => number, weights: Record<string, number>): strin
  * regenerates with a bumped seed if needed).
  */
 function buildCandidateGrid(level: number, rng: () => number): Cell[][] {
-  const grid: Cell[][] = Array.from({ length: BRICK_ROWS }, () => Array(BRICK_COLS).fill("."));
+  const playableRows = playableRowsForLevel(level);
+  const totalRows = TOP_CLEAR_ROWS + playableRows + BOTTOM_CLEAR_ROWS;
+  const grid: Cell[][] = Array.from({ length: totalRows }, () => Array(BRICK_COLS).fill("."));
   const density = densityForLevel(level);
   const weights = brickWeightsForLevel(level);
+  const template = pickLayoutTemplate(level, rng);
+
+  // A template masks out cells (e.g. hollowFrame only covers ~40% of the
+  // playable area), so filling masked-in cells at the same density used for
+  // the full rectangle would make sparse templates produce far fewer total
+  // bricks — turning shape choice into an unintended difficulty swing
+  // (see the brick-count variance this caused per-level before this fix).
+  // Rescale so the *expected total brick count* stays what the plain
+  // rectangle at densityForLevel(level) would give, regardless of template;
+  // capped at 1 for templates too sparse to hit that count even fully solid
+  // (growing playableRowsForLevel over time is what keeps that cap from
+  // binding at high levels — more cells to work with, same target density).
+  let maskedCells = 0;
+  for (let row = 0; row < playableRows; row++) {
+    for (let col = 0; col < BRICK_COLS; col++) {
+      if (template.mask(row, col, playableRows)) maskedCells++;
+    }
+  }
+  const totalCells = playableRows * BRICK_COLS;
+  const effectiveDensity =
+    maskedCells === 0 ? 0 : Math.min((density * totalCells) / maskedCells, 1);
 
   let placed = 0;
   let indestructiblePlaced = 0;
 
-  for (let row = TOP_CLEAR_ROWS; row < TOP_CLEAR_ROWS + PLAYABLE_ROWS; row++) {
+  for (let row = TOP_CLEAR_ROWS; row < TOP_CLEAR_ROWS + playableRows; row++) {
     for (let col = 0; col < BRICK_COLS; col++) {
-      if (rng() > density) continue;
+      if (!template.mask(row - TOP_CLEAR_ROWS, col, playableRows)) continue;
+      if (rng() > effectiveDensity) continue;
 
       let type = TYPE_TO_CHAR[weightedPick(rng, weights)];
 

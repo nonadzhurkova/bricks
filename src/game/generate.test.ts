@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { generateEndlessLevel, isSolvable, endlessBaseSpeed, type Cell } from "./generate";
+import { generateEndlessLevel, isSolvable, endlessBaseSpeed, playableRowsForLevel, type Cell } from "./generate";
 import { BRICK_CHAR_MAP } from "./brickTypes";
-import { BRICK_COLS, BRICK_ROWS, MAX_BALL_SPEED } from "./constants";
+import { BRICK_COLS, MAX_BALL_SPEED } from "./constants";
+
+// TOP_CLEAR_ROWS (1) + BOTTOM_CLEAR_ROWS (2), mirrored from generate.ts since
+// those aren't exported — total grid rows is always playable rows + this.
+const CLEAR_ROWS = 3;
 
 describe("generateEndlessLevel", () => {
   it("produces a grid with valid dimensions and only known brick chars", () => {
     for (const level of [9, 12, 20, 35, 60]) {
       const def = generateEndlessLevel(level);
-      expect(def.grid).toHaveLength(BRICK_ROWS);
+      expect(def.grid).toHaveLength(playableRowsForLevel(level) + CLEAR_ROWS);
       def.grid.forEach((row) => {
         expect(row).toHaveLength(BRICK_COLS);
         for (const ch of row) {
