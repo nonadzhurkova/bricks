@@ -588,14 +588,15 @@ export class GameEngine {
 
     const paddleCenterX = this.paddleX + this.paddleWidth / 2;
     const toPaddleX = paddleCenterX - this.ballPos.x;
+    const toPaddleY = this.paddle.container.y - this.ballPos.y;
     if (Math.abs(toPaddleX) < 1) return;
 
     const speed = Math.hypot(this.ballVel.x, this.ballVel.y);
     if (speed <= 0) return;
 
-    const pullStrength = 2.2; // radians/sec turn rate toward the paddle, tuned to feel like a steady pull rather than an instant snap
+    const pullStrength = 5; // radians/sec turn rate toward the paddle, tuned to feel like a steady pull rather than an instant snap
     const currentAngle = Math.atan2(this.ballVel.y, this.ballVel.x);
-    const targetAngle = Math.atan2(ARENA_HEIGHT - this.ballPos.y, toPaddleX);
+    const targetAngle = Math.atan2(toPaddleY, toPaddleX);
 
     let delta = targetAngle - currentAngle;
     while (delta > Math.PI) delta -= Math.PI * 2;

@@ -6,7 +6,6 @@ import { useGameStore } from "@/state/store";
 export default function GameOverOverlay() {
   const level = useGameStore((s) => s.level);
   const restartLevel = useGameStore((s) => s.restartLevel);
-  const goToTitle = useGameStore((s) => s.goToTitle);
 
   return (
     <motion.div
@@ -33,9 +32,6 @@ export default function GameOverOverlay() {
         <p>Level {level} — out of lives</p>
         <button className="primary-btn" onClick={restartLevel}>
           Retry level
-        </button>
-        <button className="secondary-btn" onClick={goToTitle}>
-          Quit to title
         </button>
       </motion.div>
     </motion.div>
