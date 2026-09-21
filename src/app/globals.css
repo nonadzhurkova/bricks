@@ -264,6 +264,13 @@ body {
   }
 }
 
+.starfield-powerup-tint {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.6s ease, background 0.6s ease;
+  pointer-events: none;
+}
+
 .starfield-grid {
   position: absolute;
   inset: -10%;

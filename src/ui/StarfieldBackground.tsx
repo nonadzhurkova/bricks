@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
+import { useGameStore } from "@/state/store";
+import { POWERUPS } from "@/game/powerups";
 
 interface Star {
   x: number;
@@ -27,9 +29,21 @@ function makeStars(count: number, seed: number): Star[] {
   }));
 }
 
-/** Animated starfield + nebula glow, used as a backdrop behind the title screen. */
+function colorToCss(color: number): string {
+  return `#${color.toString(16).padStart(6, "0")}`;
+}
+
+/** Animated starfield + nebula glow, used as a backdrop behind the title screen and gameplay. */
 export default function StarfieldBackground() {
   const stars = useMemo(() => makeStars(70, 42), []);
+
+  // Map order reflects catch order (Map.set doesn't reorder on update), so
+  // the last entry is the most-recently-caught active power-up — used to
+  // tint the background toward that power-up's own color while it's active.
+  const activeEffects = useGameStore((s) => s.activeEffects);
+  const tintColor = activeEffects.length > 0
+    ? colorToCss(POWERUPS[activeEffects[activeEffects.length - 1].type].color)
+    : null;
 
   return (
     <div className="starfield" aria-hidden="true">
@@ -51,6 +65,13 @@ export default function StarfieldBackground() {
         />
       ))}
       <div className="starfield-grid" />
+      <div
+        className="starfield-powerup-tint"
+        style={{
+          background: tintColor ? `radial-gradient(circle, ${tintColor}, transparent 70%)` : "transparent",
+          opacity: tintColor ? 0.35 : 0,
+        }}
+      />
     </div>
   );
 }
